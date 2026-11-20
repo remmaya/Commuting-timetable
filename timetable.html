@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<style>
+  :root {
+    --label-w: 72px;
+    --colw: 96px;
+    --head-h: 30px;
+    --time-h: 34px;
+    --leg-h: 22px;
+    --line: #dadce0;
+    --line-strong: #9aa0a6;
+    --ink: #202124;
+    --muted: #80868b;
+    --accent: #1a73e8;
+    --accent-bg: #e8f0fe;
+    --sel-bg: #fef7e0;
+    --join-bg: #f1f3f4;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: #fff; color: var(--ink);
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; }
+  #app { width: 100%; max-width: 520px; margin: 0 auto; user-select: none; }
+
+  /* ---- 上部バー ---- */
+  .topbar { display: flex; align-items: baseline; gap: 8px; padding: 6px 4px 8px; }
+  .title { font-weight: 700; font-size: 16px; white-space: nowrap; }
+  .status { font-size: 12px; color: var(--muted); line-height: 1.35; }
+  .status b { color: var(--ink); }
+
+  /* ---- 表本体 ---- */
+  .grid { display: flex; border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); }
+  .labels { flex: 0 0 auto; width: var(--label-w); border-right: 1px solid var(--line-strong); background: #fafafa; }
+  .scroller {
+    flex: 0 0 auto; width: calc(var(--colw) * 3);
+    overflow-x: auto; overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .scroller::-webkit-scrollbar { display: none; }
+  .track { display: flex; width: max-content; }
+  .col { flex: 0 0 var(--colw); width: var(--colw); scroll-snap-align: start; position: relative; }
+  .col.spacer { background: repeating-linear-gradient(45deg, #fafafa 0 6px, #f3f3f3 6px 12px); }
+
+  .head { height: var(--head-h); border-bottom: 1px solid var(--line-strong);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); }
+  .labels .head { font-size: 10px; }
+
+  /* 地点ラベル（タップ可能） */
+  .stop-label { display: flex; width: 100%; border: 0; padding: 0; margin: 0; background: none;
+    font: inherit; color: inherit; text-align: left; cursor: pointer; border-bottom: 1px dashed var(--line); }
+  .stop-label:active { background: #e8eaed; }
+  .stop-label .name { flex: 1; display: flex; align-items: center; padding-left: 6px;
+    font-size: 13px; font-weight: 600; line-height: 1.15; white-space: nowrap; }
+  .stop-label .kinds { flex: 0 0 20px; display: flex; flex-direction: column; }
+  .stop-label .kind { height: var(--time-h); display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: var(--muted); }
+  .stop-label.selected { background: var(--sel-bg); box-shadow: inset 3px 0 0 #f9ab00; }
+
+  .leg-label, .leg { height: var(--leg-h); border-bottom: 1px dashed var(--line); }
+
+  /* 時刻セル */
+  .cell { height: var(--time-h); display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-variant-numeric: tabular-nums; letter-spacing: .2px; position: relative; }
+  .cell.last-of-stop { border-bottom: 1px dashed var(--line); }
+  .cell.empty { color: #c0c4c8; font-size: 13px; }
+  .cell.sel { background: var(--sel-bg); }
+
+  .leg { position: relative; display: flex; align-items: center; justify-content: center; gap: 3px; font-size: 13px; color: var(--muted); }
+  .leg .badge { font-size: 11px; font-weight: 700; line-height: 1; }
+
+  /* 合流：隣のスジと同じ列車 → 帯でつなぐ */
+  .join-r::before, .join-l::before {
+    content: ""; position: absolute; top: 4px; bottom: 4px; background: var(--join-bg); z-index: -1; }
+  .join-r::before { left: 6px; right: 0; border-radius: 8px 0 0 8px; }
+  .join-l::before { left: 0; right: 6px; border-radius: 0 8px 8px 0; }
+  .join-l.join-r::before { left: 0; right: 0; border-radius: 0; }
+  .cell, .leg { z-index: 0; isolation: isolate; }
+
+  /* 中央（基準）スジ */
+  .col.center { background: var(--accent-bg); box-shadow: inset 2px 0 0 var(--accent), inset -2px 0 0 var(--accent); }
+  .col.center .head { color: #fff; background: var(--accent); font-weight: 700; }
+  .col.center .cell { font-weight: 700; }
+  .col.center .cell.sel { background: #fde293; }
+  .col:not(.center):not(.spacer) .cell { color: #3c4043; }
+
+  /* ---- 下部 ---- */
+  .footer { display: flex; align-items: center; gap: 6px; padding: 8px 4px; font-size: 12px; color: var(--muted); }
+  .nav { border: 1px solid var(--line); background: #fff; border-radius: 18px; height: 34px; min-width: 44px;
+    font-size: 15px; color: var(--ink); }
+  .nav:active { background: #e8eaed; }
+  .spacer-flex { flex: 1; }
+  .testtime { display: flex; align-items: center; gap: 4px; }
+  .testtime input { font-size: 13px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 6px; width: 92px; }
+  .testtime button { font-size: 12px; border: 0; background: none; color: var(--accent); padding: 4px; }
+
+  .toast { position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%);
+    background: rgba(32,33,36,.92); color: #fff; font-size: 13px; padding: 8px 12px; border-radius: 8px;
+    opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <div class="title" id="title"></div>
+    <div class="status" id="status"></div>
+  </div>
+  <div class="grid">
+    <div class="labels" id="labels"></div>
+    <div class="scroller" id="scroller"><div class="track" id="track"></div></div>
+  </div>
+  <div class="footer">
+    <button class="nav" id="prev" aria-label="前のスジ">◀</button>
+    <button class="nav" id="next" aria-label="次のスジ">▶</button>
+    <div class="spacer-flex"></div>
+    <label class="testtime">テスト時刻
+      <input type="time" id="testTime">
+      <button id="clearTest">解除</button>
+    </label>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+const KIND_LABEL = { arr: "着", dep: "発" };
+const $ = (id) => document.getElementById(id);
+const scroller = $("scroller"), track = $("track"), labelsEl = $("labels");
+const trips = DATA.trips;
+const N = trips.length;
+let colW = 96;
+let centerIdx = 0;
+let selectedStop = null;
+
+// ---------- 時刻ユーティリティ ----------
+const toMin = (s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
+const fmt = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+
+function nowJstMinutes() {
+  const t = $("testTime").value;            // テスト用の上書き
+  if (t) return toMin(t);
+  const parts = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date());
+  const get = (type) => Number(parts.find((p) => p.type === type).value);
+  return get("hour") * 60 + get("minute");
+}
+
+// ---------- 描画 ----------
+function build() {
+  $("title").textContent = DATA.title;
+
+  // 左：地点ラベル
+  labelsEl.innerHTML = `<div class="head">地点</div>`;
+  for (const row of DATA.rows) {
+    if (row.type === "stop") {
+      const btn = document.createElement("button");
+      btn.className = "stop-label";
+      btn.dataset.stop = row.id;
+      btn.innerHTML = `<span class="name">${row.name}</span><span class="kinds">${
+        row.times.map((k) => `<span class="kind">${KIND_LABEL[k]}</span>`).join("")}</span>`;
+      btn.addEventListener("click", () => onStopTap(row));
+      labelsEl.appendChild(btn);
+    } else {
+      labelsEl.insertAdjacentHTML("beforeend", `<div class="leg-label"></div>`);
+    }
+  }
+
+  // 右：スジの列（両端に空列を置き、先頭・末尾のスジも中央に来られるようにする）
+  const cols = [`<div class="col spacer"></div>`];
+  trips.forEach((trip, i) => {
+    let html = `<div class="col" data-idx="${i}"><div class="head">No.${trip.no}</div>`;
+    for (const row of DATA.rows) {
+      if (row.type === "stop") {
+        row.times.forEach((k, j) => {
+          const key = `${row.id}.${k}`;
+          const v = trip.times[key];
+          const cls = ["cell", j === row.times.length - 1 ? "last-of-stop" : "", v ? "" : "empty",
+                       joinClass(i, key)].join(" ");
+          html += `<div class="${cls}" data-key="${key}">${v ?? "—"}</div>`;
+        });
+      } else {
+        html += `<div class="leg ${joinClass(i, row.id)}">${legHtml(trip, row)}</div>`;
+      }
+    }
+    cols.push(html + `</div>`);
+  });
+  cols.push(`<div class="col spacer"></div>`);
+  track.innerHTML = cols.join("");
+}
+
+function legHtml(trip, row) {
+  if (row.kind === "plain") return "↓";
+  const leg = trip.legs[row.id];
+  if (!leg) return `<span style="color:#c0c4c8">—</span>`;
+  return `<span style="color:${leg.color}">↓</span><span class="badge" style="color:${leg.color}">${leg.label}</span>`;
+}
+
+function joinClass(i, key) {
+  const id = trips[i].joins?.[key];
+  if (!id) return "";
+  const c = [];
+  if (i > 0 && trips[i - 1].joins?.[key] === id) c.push("join-l");
+  if (i < N - 1 && trips[i + 1].joins?.[key] === id) c.push("join-r");
+  return c.join(" ");
+}
+
+// ---------- レイアウト・スクロール ----------
+function layout() {
+  const total = $("app").clientWidth;
+  const labelMin = 72;
+  colW = Math.floor((total - labelMin - 1) / 3);
+  const labelW = total - colW * 3 - 1;
+  document.documentElement.style.setProperty("--colw", colW + "px");
+  document.documentElement.style.setProperty("--label-w", labelW + "px");
+}
+
+function scrollToIdx(i, smooth = true) {
+  i = Math.max(0, Math.min(N - 1, i));
+  scroller.scrollTo({ left: i * colW, behavior: smooth ? "smooth" : "auto" });
+  setCenter(i);
+}
+
+function setCenter(i) {
+  if (i === centerIdx && track.querySelector(".col.center")) return;
+  centerIdx = i;
+  track.querySelectorAll(".col.center").forEach((c) => c.classList.remove("center"));
+  track.querySelector(`.col[data-idx="${i}"]`)?.classList.add("center");
+}
+
+let raf = 0;
+scroller.addEventListener("scroll", () => {
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(() => {
+    const i = Math.max(0, Math.min(N - 1, Math.round(scroller.scrollLeft / colW)));
+    setCenter(i);   // 表示位置は利用者の操作だけで変わる（時間経過では動かさない）
+  });
+}, { passive: true });
+
+window.addEventListener("resize", () => {
+  const keep = centerIdx;
+  layout();
+  scrollToIdx(keep, false);
+});
+
+$("prev").addEventListener("click", () => scrollToIdx(centerIdx - 1));
+$("next").addEventListener("click", () => scrollToIdx(centerIdx + 1));
+$("clearTest").addEventListener("click", () => { $("testTime").value = ""; });
+
+// ---------- 地点タップ → 現在時刻以降の最初のスジを中央へ ----------
+function selectStop(row, smooth) {
+  const kind = row.times.includes("dep") ? "dep" : "arr";
+  const key = `${row.id}.${kind}`;
+  const now = nowJstMinutes();
+
+  let idx = trips.findIndex((t) => t.times[key] && toMin(t.times[key]) >= now);
+  let note = "";
+  if (idx === -1) {
+    // これ以降のスジがない → その地点を通る最終スジを表示
+    for (let i = N - 1; i >= 0; i--) if (trips[i].times[key]) { idx = i; break; }
+    note = "これ以降のスジはありません（最終を表示）";
+  }
+
+  selectedStop = row.id;
+  labelsEl.querySelectorAll(".stop-label").forEach((b) =>
+    b.classList.toggle("selected", b.dataset.stop === row.id));
+  track.querySelectorAll(".cell.sel").forEach((c) => c.classList.remove("sel"));
+  track.querySelectorAll(`.cell[data-key="${key}"]`).forEach((c) => c.classList.add("sel"));
+
+  if (idx >= 0) {
+    scrollToIdx(idx, smooth);
+    $("status").innerHTML =
+      `<b>${row.name} ${trips[idx].times[key]}${KIND_LABEL[kind]}</b> を中央に表示<br>` +
+      `（${fmt(now)} 時点${$("testTime").value ? "・テスト時刻" : ""}）`;
+  }
+  if (note) toast(note);
+}
+
+function onStopTap(row) { selectStop(row, true); }
+
+let toastTimer = 0;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+// ---------- 起動 ----------
+build();
+layout();
+// 起動時は「自宅」を基準に1回だけ位置決めする（その後は自動更新しない）
+selectStop(DATA.rows.find((r) => r.type === "stop"), false);
+</script>
+</body>
+</html>
