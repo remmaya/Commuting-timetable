@@ -25,8 +25,8 @@
     --accent-ink: #0b57d0;
     --sel-bg: #fef3c7;
     --sel-strong: #fde68a;
-    --join: rgba(60, 64, 67, .08);
-    --join-center: rgba(26, 115, 232, .14);
+    --join: rgba(60, 64, 67, .09);
+    --join-center: rgba(26, 115, 232, .16);
     --warn: #e37400;
     --warn-bg: #fff4e5;
     --late: #d93025;
@@ -35,25 +35,10 @@
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #131314;
-      --surface: #1e1f20;
-      --ink: #e8eaed;
-      --ink-2: #bdc1c6;
-      --muted: #80868b;
-      --line: #2d2f31;
-      --line-strong: #44474a;
-      --accent: #8ab4f8;
-      --accent-bg: #1c2b41;
-      --accent-ink: #a8c7fa;
-      --sel-bg: #3a3320;
-      --sel-strong: #5c4d1c;
-      --join: rgba(255, 255, 255, .07);
-      --join-center: rgba(138, 180, 248, .18);
-      --warn: #fdab53;
-      --warn-bg: #3b2a14;
-      --late: #f28b82;
-      --late-bg: #3c1f1d;
-      --shadow: 0 2px 12px rgba(0, 0, 0, .5);
+      --bg: #131314; --surface: #1e1f20; --ink: #e8eaed; --ink-2: #bdc1c6; --muted: #80868b;
+      --line: #2d2f31; --line-strong: #44474a; --accent: #8ab4f8; --accent-bg: #1c2b41; --accent-ink: #a8c7fa;
+      --sel-bg: #3a3320; --sel-strong: #5c4d1c; --join: rgba(255, 255, 255, .08); --join-center: rgba(138, 180, 248, .2);
+      --warn: #fdab53; --warn-bg: #3b2a14; --late: #f28b82; --late-bg: #3c1f1d; --shadow: 0 2px 12px rgba(0, 0, 0, .5);
     }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -62,11 +47,15 @@
   button { font: inherit; color: inherit; }
   #app { width: 100%; max-width: 520px; margin: 0 auto; user-select: none; -webkit-user-select: none; }
 
-  /* ---- 時刻表タブ ---- */
-  .tabs { display: flex; gap: 4px; padding: 4px; background: var(--surface); border-radius: 12px; margin: 2px 2px 8px; }
-  .tab { flex: 1; border: 0; background: none; padding: 8px 0; border-radius: 9px; font-size: 14px;
-    font-weight: 600; color: var(--ink-2); }
-  .tab.active { background: var(--bg); color: var(--accent-ink); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+  /* ---- 方向・目標 ---- */
+  .bar { display: flex; align-items: center; gap: 6px; margin: 2px 2px 8px; }
+  .seg { display: flex; gap: 3px; padding: 3px; background: var(--surface); border-radius: 12px; }
+  .seg.goals { flex: 1; }
+  .seg button { flex: 1; border: 0; background: none; padding: 6px 4px; border-radius: 9px; font-size: 14px;
+    font-weight: 700; color: var(--ink-2); line-height: 1.1; white-space: nowrap; }
+  .seg button small { display: block; font-size: 10px; font-weight: 500; color: var(--muted); }
+  .seg button.active { background: var(--bg); color: var(--accent-ink); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+  .bar .cap { font-size: 11px; color: var(--muted); writing-mode: vertical-rl; letter-spacing: 2px; }
 
   /* ---- 残り時間カード ---- */
   .count { display: flex; align-items: center; gap: 10px; margin: 0 2px 10px; padding: 10px 12px;
@@ -74,7 +63,7 @@
   .count .what { flex: 1; min-width: 0; }
   .count .target { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .count .sub { font-size: 12px; color: var(--ink-2); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .count .sub .chip { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 6px; margin-left: 4px; }
+  .chip { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 6px; margin-left: 4px; }
   .chip.deadline { background: var(--warn-bg); color: var(--warn); }
   .chip.late { background: var(--late-bg); color: var(--late); }
   .count .remain { text-align: right; white-space: nowrap; color: var(--accent-ink); }
@@ -92,76 +81,75 @@
   .scroller { flex: 0 0 auto; width: calc(var(--colw) * 3); overflow-x: auto; overflow-y: hidden;
     scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
   .scroller::-webkit-scrollbar { display: none; }
-  .track { display: flex; width: max-content; }
-  .col { flex: 0 0 var(--colw); width: var(--colw); scroll-snap-align: start; position: relative; isolation: isolate; }
-  .col.spacer { background: repeating-linear-gradient(45deg, transparent 0 7px, var(--line) 7px 8px); opacity: .6; }
+  /* 行×列のマス目。合流区間は横長の1マスにする */
+  .track { display: grid; grid-auto-columns: var(--colw); width: max-content; position: relative; isolation: isolate; }
 
-  /* 中央（基準）スジ：浮いたカード */
-  .col.center::before { content: ""; position: absolute; inset: 3px 3px 3px; border-radius: 12px;
-    background: var(--accent-bg); box-shadow: var(--shadow); z-index: -1; }
+  .snap { scroll-snap-align: start; z-index: 0; }
+  .snap.spacer { background: repeating-linear-gradient(45deg, transparent 0 7px, var(--line) 7px 8px); opacity: .6; }
+  .hline { align-self: end; height: 1px; background: var(--line); z-index: 1; }
+  .selband { background: var(--sel-bg); z-index: 1; }
+  .card { margin: 3px; border-radius: 12px; background: var(--accent-bg); box-shadow: var(--shadow); z-index: 2; }
+  .selpill { margin: 4px 7px; border-radius: 9px; background: var(--sel-strong); z-index: 3; }
 
-  .head { height: var(--head-h); display: flex; align-items: center; justify-content: center; gap: 4px;
-    font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); }
-  .labels .head { font-size: 11px; }
-  .col.center .head { color: var(--accent-ink); font-weight: 700; border-bottom-color: transparent; }
-  .head .tag { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 5px; }
-  .head .tag.deadline { background: var(--warn-bg); color: var(--warn); }
-  .head .tag.late { background: var(--late-bg); color: var(--late); }
+  .head { height: var(--head-h); display: flex; align-items: center; justify-content: center; gap: 3px;
+    font-size: 12px; color: var(--muted); z-index: 4; }
+  .labels .head { box-shadow: inset 0 -1px 0 var(--line); font-size: 11px; }
+  .head.c { color: var(--accent-ink); font-weight: 700; }
+  .head.late { opacity: .55; }
+  .tag { font-size: 10px; font-weight: 700; padding: 1px 4px; border-radius: 5px; white-space: nowrap; }
+  .tag.deadline { background: var(--warn-bg); color: var(--warn); }
+  .tag.other { background: var(--surface); color: var(--muted); }
 
   /* 地点ラベル（タップ可能） */
   .stop-label { display: flex; width: 100%; border: 0; padding: 0; margin: 0; background: none;
-    text-align: left; cursor: pointer;
-    box-shadow: inset 0 -1px 0 var(--line); }  /* 線を高さに含めない（右側のセルと揃える） */
+    text-align: left; cursor: pointer; box-shadow: inset 0 -1px 0 var(--line); }
   .stop-label:active { background: var(--line); }
   .stop-label .name { flex: 1; display: flex; align-items: center; padding-left: 8px;
     font-size: 14px; font-weight: 700; white-space: nowrap; }
   .stop-label .kinds { flex: 0 0 22px; display: flex; flex-direction: column; }
   .stop-label .kind { display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--muted); }
   .stop-label.selected { background: var(--sel-bg); box-shadow: inset 4px 0 0 #f9ab00, inset 0 -1px 0 var(--line); }
-
+  .leg-label { height: var(--leg-h); box-shadow: inset 0 -1px 0 var(--line); }
   .h-solo { height: var(--solo-h); } .h-dep { height: var(--dep-h); } .h-arr { height: var(--arr-h); }
-  .leg-label, .leg { height: var(--leg-h); }
 
-  /* 時刻セル */
-  .cell { display: flex; align-items: center; justify-content: center; position: relative; isolation: isolate;
+  /* 時刻・区間のマス */
+  .cell, .mcell { position: relative; z-index: 4; display: flex; align-items: center;
     font-variant-numeric: tabular-nums; color: var(--ink-2); }
-  .cell.last { border-bottom: 1px solid var(--line); }
-  .cell.k-arr { font-size: 14px; color: var(--muted); }
-  .cell.k-dep { font-size: 19px; font-weight: 500; }
-  .cell.h-solo { font-size: 21px; font-weight: 500; }
-  .cell.empty { color: var(--line-strong); font-size: 14px; font-weight: 400; }
-  .col.center .cell { color: var(--ink); }
-  .col.center .cell.k-dep, .col.center .cell.h-solo { font-weight: 700; }
-  .col.center .cell.k-arr { color: var(--ink-2); font-weight: 600; }
-  .cell.sel { background: var(--sel-bg); }
-  .col.center .cell.sel::after { content: ""; position: absolute; inset: 4px 7px; border-radius: 9px;
-    background: var(--sel-strong); z-index: -1; }
-  .cell.is-late { color: var(--late) !important; }
-  .cell.is-deadline { color: var(--warn) !important; }
-  .cell.is-deadline::before { content: ""; position: absolute; left: 22%; right: 22%; bottom: 7px; height: 2px;
-    border-radius: 1px; background: var(--warn); }
+  .cell { justify-content: center; }
+  .mcell { justify-content: flex-end; }
+  .k-arr { font-size: 14px; color: var(--muted); }
+  .k-dep { font-size: 19px; font-weight: 500; }
+  .k-solo { font-size: 21px; font-weight: 500; }
+  .k-leg { font-size: 13px; color: var(--muted); gap: 4px; }
+  .empty { color: var(--line-strong) !important; font-size: 14px; font-weight: 400; }
+  .c { color: var(--ink); }
+  .c.k-dep, .c.k-solo { font-weight: 700; }
+  .c.k-arr { color: var(--ink-2); font-weight: 600; }
+  .is-late { color: var(--late) !important; }
+  .is-deadline { color: var(--warn) !important; }
+  .is-deadline .t::after, .cell.is-deadline::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 7px;
+    height: 2px; border-radius: 1px; background: var(--warn); }
+  .pill { font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 7px; border-radius: 999px; color: #fff; }
 
-  .leg { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: center;
-    gap: 4px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); }
-  .leg .pill { font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 7px; border-radius: 999px; color: #fff; }
-  .leg-label { border-bottom: 1px solid var(--line); }
-
-  /* 合流：隣のスジと同じ便 → 帯でつなぐ（中央カードより手前、文字より奥） */
-  .join-r::before, .join-l::before { content: ""; position: absolute; top: 5px; bottom: 5px; background: var(--join); z-index: -1; }
-  .join-r::before { left: 8px; right: 0; border-radius: 9px 0 0 9px; }
-  .join-l::before { left: 0; right: 8px; border-radius: 0 9px 9px 0; }
-  .join-l.join-r::before { left: 0; right: 0; border-radius: 0; }
-  .col.center .join-l::before, .col.center .join-r::before { background: var(--join-center); }
+  /* 合流区間：帯は右向きの矢印形。時刻は帯の右端（画面からはみ出すときは画面の右端）に表示 */
+  .mcell .band { position: absolute; top: 5px; bottom: 5px; left: 8px; right: 2px; background: var(--join);
+    border-radius: 9px 0 0 9px; clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%); }
+  .mcell.c .band { background: var(--join-center); }
+  .mcell .t { position: sticky; right: 0; flex: 0 0 var(--colw); width: var(--colw); height: 100%;
+    display: flex; align-items: center; justify-content: center; gap: 4px; padding-right: 6px; }
 
   /* ---- 全体の位置（ミニマップ） ---- */
-  .map { display: flex; gap: 2px; padding: 10px 2px 4px; }
-  .tick { flex: 1; height: 22px; border: 0; padding: 0; background: none; display: flex; align-items: center; }
-  .tick i { display: block; width: 100%; height: 6px; border-radius: 3px; background: var(--line); }
-  .tick.vis i { background: var(--line-strong); height: 8px; }
-  .tick.cur i { background: var(--accent); height: 12px; }
+  .map { display: flex; gap: 1px; padding: 10px 2px 2px; }
+  .tick { flex: 1; height: 22px; border: 0; padding: 0; background: none; display: flex; align-items: center; min-width: 0; }
+  .tick i { display: block; width: 100%; height: 6px; border-radius: 2px; background: var(--line); }
+  .tick.vis i { background: var(--line-strong); height: 9px; }
+  .tick.cur i { background: var(--accent); height: 13px; }
   .tick.deadline i { box-shadow: 0 0 0 2px var(--warn); }
-  .tick.late i { opacity: .45; }
-  .map-cap { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); padding: 0 2px; }
+  .tick.goal i { box-shadow: 0 0 0 1.5px var(--muted); }
+  .tick.late i { opacity: .4; }
+  .map-cap { position: relative; height: 14px; font-size: 10px; color: var(--muted); margin: 0 2px; }
+  .map-cap span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .map-cap span.sel { color: var(--warn); font-weight: 700; }
 
   /* ---- 下部 ---- */
   .footer { display: flex; align-items: center; gap: 6px; padding: 8px 2px 4px; font-size: 12px; color: var(--muted); }
@@ -175,13 +163,16 @@
 
   .toast { position: fixed; left: 50%; top: 96px; transform: translateX(-50%); background: rgba(32,33,36,.94);
     color: #fff; font-size: 13px; padding: 8px 12px; border-radius: 8px; opacity: 0; transition: opacity .2s;
-    pointer-events: none; white-space: nowrap; }
+    pointer-events: none; white-space: nowrap; z-index: 10; }
   .toast.show { opacity: 1; }
 </style>
 </head>
 <body>
 <div id="app">
-  <div class="tabs" id="tabs"></div>
+  <div class="bar">
+    <div class="seg" id="dirs"></div>
+    <div class="seg goals" id="goals"></div>
+  </div>
   <div class="count" id="count">
     <div class="what"><div class="target" id="cTarget"></div><div class="sub" id="cSub"></div></div>
     <div class="remain" id="cRemain"></div>
@@ -191,7 +182,7 @@
     <div class="scroller" id="scroller"><div class="track" id="track"></div></div>
   </div>
   <div class="map" id="map"></div>
-  <div class="map-cap"><span id="capL"></span><span id="capR"></span></div>
+  <div class="map-cap" id="mapCap"></div>
   <div class="footer">
     <button class="nav" id="prev" aria-label="前のスジ">◀</button>
     <button class="nav" id="next" aria-label="次のスジ">▶</button>
@@ -210,13 +201,15 @@ const KIND_LABEL = { arr: "着", dep: "発" };
 const $ = (id) => document.getElementById(id);
 const scroller = $("scroller"), track = $("track"), labelsEl = $("labels");
 
-let tt = null;            // 表示中の時刻表
-let trips = [], N = 0;
-let colW = 96, centerIdx = 0;
-let selStopName = null;   // タップした地点（時刻表を切り替えても引き継ぐ）
-let selKey = null;        // その地点で見る時刻のキー（例 s2.dep）
-let schoolKey = null;     // 最後の地点（学校）の着
-let status = [];          // 各スジ: "ok" | "deadline" | "late" | null
+let dir = null, trips = [], N = 0;
+let lines = [];          // 表の各行（時刻または区間）: {key, gridRow, row, kind, cls}
+let colW = 96, centerIdx = -1;
+let goalIdx = 0;
+let selStopName = null, selKey = null;
+let schoolKey = null;
+let status = [];         // 選択中の目標に対する各スジ: "ok" | "deadline" | "late" | null
+let goalLast = [];       // 目標ごとの「間に合う最後のスジ」の番号
+let runsByKey = {};      // 行ごとの合流区間 [{from, to}]
 
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -225,10 +218,8 @@ const store = {
 
 // ---------- 時刻 ----------
 const toMin = (s) => { const [h, m] = s.split(":").map(Number); return h * 60 + m; };
-const fmt = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
-
 function nowJstSeconds() {
-  const t = $("testTime").value;            // テスト時刻（固定）
+  const t = $("testTime").value;
   if (t) return toMin(t) * 60;
   const p = new Intl.DateTimeFormat("ja-JP", { timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit",
     second: "2-digit", hourCycle: "h23" }).formatToParts(new Date());
@@ -236,115 +227,167 @@ function nowJstSeconds() {
   return g("hour") * 3600 + g("minute") * 60 + g("second");
 }
 
-// ---------- 時刻表の切り替え ----------
-function buildTabs() {
-  $("tabs").innerHTML = DATA.timetables.map((t, i) =>
-    `<button class="tab" data-i="${i}">${t.name}</button>`).join("");
-  $("tabs").querySelectorAll(".tab").forEach((b) =>
-    b.addEventListener("click", () => switchTimetable(Number(b.dataset.i), true)));
+// ---------- 方向・目標 ----------
+function buildBar() {
+  const dirs = DATA.directions;
+  $("dirs").style.display = dirs.length > 1 ? "" : "none";
+  $("dirs").innerHTML = dirs.map((d, i) => `<button data-i="${i}">${d.name}</button>`).join("");
+  $("dirs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => switchDirection(Number(b.dataset.i))));
 }
 
-function switchTimetable(i, smooth) {
-  tt = DATA.timetables[i];
-  trips = tt.trips; N = trips.length;
-  store.set("tt", tt.name);
-  $("tabs").querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === i));
+function buildGoals() {
+  const goals = dir.goals.filter((g) => g.deadline);
+  $("goals").style.display = goals.length ? "" : "none";
+  $("goals").innerHTML = dir.goals.map((g, i) =>
+    `<button data-i="${i}">${g.name}${g.deadline ? `<small>${g.deadline}まで</small>` : ""}</button>`).join("");
+  $("goals").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    goalIdx = Number(b.dataset.i);
+    store.set(`goal:${dir.name}`, dir.goals[goalIdx].name);
+    renderGoal();   // 印が変わるだけで、表示位置は動かさない
+  }));
+  const saved = dir.goals.findIndex((g) => g.name === store.get(`goal:${dir.name}`));
+  goalIdx = saved >= 0 ? saved : 0;
+}
 
-  const stops = tt.rows.filter((r) => r.type === "stop");
+function switchDirection(i) {
+  dir = DATA.directions[i];
+  trips = dir.trips; N = trips.length;
+  store.set("dir", dir.name);
+  $("dirs").querySelectorAll("button").forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === i));
+  const stops = dir.rows.filter((r) => r.type === "stop");
   const last = stops[stops.length - 1];
   schoolKey = last.times.includes("arr") ? `${last.id}.arr` : null;
-  computeStatus();
+  buildGoals();
+  computeGoalLast();
   build();
   layout();
-  // 切り替えも「操作」なので、その時点の時刻で選択中の地点から位置決めする
+  renderGoal();
   const stop = stops.find((s) => s.name === selStopName) || stops[0];
   selectStop(stop, false);
 }
 
-function computeStatus() {
-  status = trips.map(() => null);
-  if (!tt.deadline || !schoolKey) return;
-  const dl = toMin(tt.deadline);
-  let lastOk = -1;
-  trips.forEach((t, i) => {
-    const a = t.times[schoolKey];
-    if (!a) return;
-    if (toMin(a) <= dl) { status[i] = "ok"; lastOk = i; } else status[i] = "late";
+function computeGoalLast() {
+  goalLast = dir.goals.map((g) => {
+    if (!g.deadline || !schoolKey) return -1;
+    let last = -1;
+    trips.forEach((t, i) => { const a = t.times[schoolKey]; if (a && toMin(a) <= toMin(g.deadline)) last = i; });
+    return last;
   });
-  if (lastOk >= 0) status[lastOk] = "deadline";   // 締切に間に合う最後のスジ
+}
+
+function renderGoal() {
+  const g = dir.goals[goalIdx];
+  $("goals").querySelectorAll("button").forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === goalIdx));
+  status = trips.map((t, i) => {
+    if (!g || !g.deadline || !schoolKey || !t.times[schoolKey]) return null;
+    if (i === goalLast[goalIdx]) return "deadline";
+    return toMin(t.times[schoolKey]) <= toMin(g.deadline) ? "ok" : "late";
+  });
+
+  // 見出し：各目標の「最終」スジに印（選択中の目標は色付き）
+  track.querySelectorAll(".head[data-i]").forEach((h) => {
+    const i = Number(h.dataset.i);
+    const tags = dir.goals.map((gg, gi) => goalLast[gi] === i
+      ? `<span class="tag ${gi === goalIdx ? "deadline" : "other"}">${gg.name}最終</span>` : "").join("");
+    h.innerHTML = `No.${trips[i].no}${tags}`;
+    h.classList.toggle("late", status[i] === "late");
+  });
+  // 学校着の色
+  track.querySelectorAll(`[data-key="${schoolKey}"]`).forEach((el) => {
+    const from = Number(el.dataset.from), to = Number(el.dataset.to);
+    const sts = status.slice(from, to + 1);
+    el.classList.toggle("is-deadline", sts.includes("deadline"));
+    el.classList.toggle("is-late", sts.length > 0 && sts.every((s) => s === "late"));
+  });
+  // ミニマップ
+  $("map").querySelectorAll(".tick").forEach((b, i) => {
+    b.classList.toggle("deadline", i === goalLast[goalIdx]);
+    b.classList.toggle("goal", i !== goalLast[goalIdx] && goalLast.includes(i));
+    b.classList.toggle("late", status[i] === "late");
+  });
+  $("mapCap").innerHTML = dir.goals.map((gg, gi) => goalLast[gi] < 0 ? "" :
+    `<span class="${gi === goalIdx ? "sel" : ""}" style="left:${Math.min(95, Math.max(5, (goalLast[gi] + .5) / N * 100))}%">${gg.name}</span>`).join("");
+  updateCountdown();
 }
 
 // ---------- 描画 ----------
-function hClass(row, k) {
-  return row.times.length === 1 ? "h-solo" : `h-${k}`;
-}
-
 function build() {
+  // 左：地点ラベル
   labelsEl.innerHTML = `<div class="head">地点</div>`;
-  for (const row of tt.rows) {
+  lines = [];
+  const heights = ["var(--head-h)"];
+  dir.rows.forEach((row, ri) => {
     if (row.type === "stop") {
       const b = document.createElement("button");
       b.className = "stop-label";
       b.dataset.name = row.name;
-      b.innerHTML = `<span class="name">${row.name}</span><span class="kinds">${
-        row.times.map((k) => `<span class="kind ${hClass(row, k)}">${KIND_LABEL[k]}</span>`).join("")}</span>`;
+      b.innerHTML = `<span class="name">${row.name}</span><span class="kinds">${row.times.map((k) => {
+        const h = row.times.length === 1 ? "solo" : k;
+        lines.push({ key: `${row.id}.${k}`, row, kind: k, cls: `k-${h}`, last: k === row.times[row.times.length - 1] });
+        heights.push(`var(--${h}-h)`);
+        return `<span class="kind h-${h}">${KIND_LABEL[k]}</span>`;
+      }).join("")}</span>`;
       b.addEventListener("click", () => selectStop(row, true));
       labelsEl.appendChild(b);
     } else {
       labelsEl.insertAdjacentHTML("beforeend", `<div class="leg-label"></div>`);
+      lines.push({ key: row.id, row, kind: "leg", cls: "k-leg", last: true, next: dir.rows[ri + 1] });
+      heights.push("var(--leg-h)");
     }
-  }
-
-  const cols = [`<div class="col spacer"><div class="head"></div></div>`];
-  trips.forEach((trip, i) => {
-    const st = status[i];
-    const tag = st === "deadline" ? `<span class="tag deadline">最終</span>`
-              : st === "late" ? `<span class="tag late">遅刻</span>` : "";
-    let html = `<div class="col" data-idx="${i}"><div class="head">No.${trip.no}${tag}</div>`;
-    tt.rows.forEach((row, ri) => {
-      if (row.type === "stop") {
-        row.times.forEach((k, j) => {
-          const key = `${row.id}.${k}`;
-          const v = trip.times[key];
-          const cls = ["cell", `k-${k}`, hClass(row, k), j === row.times.length - 1 ? "last" : "",
-            v ? "" : "empty", joinClass(i, key),
-            key === schoolKey && st === "late" ? "is-late" : "",
-            key === schoolKey && st === "deadline" ? "is-deadline" : ""].join(" ");
-          html += `<div class="${cls}" data-key="${key}">${v ?? "—"}</div>`;
-        });
-      } else {
-        html += `<div class="leg ${joinClass(i, row.id)}">${legHtml(trip, row, tt.rows[ri + 1])}</div>`;
-      }
-    });
-    cols.push(html + `</div>`);
   });
-  cols.push(`<div class="col spacer"><div class="head"></div></div>`);
-  track.innerHTML = cols.join("");
+  lines.forEach((l, i) => (l.gridRow = i + 2));
+  track.style.gridTemplateRows = heights.join(" ");
+
+  const h = [];
+  const all = `grid-row:1/${lines.length + 2}`;
+  for (let c = 0; c < N + 2; c++) {
+    const sp = c === 0 || c === N + 1;
+    h.push(`<div class="snap${sp ? " spacer" : ""}" style="${all};grid-column:${c + 1}"></div>`);
+  }
+  h.push(`<div class="hline" style="grid-row:1;grid-column:1/${N + 3}"></div>`);
+  lines.forEach((l) => { if (l.last) h.push(`<div class="hline" style="grid-row:${l.gridRow};grid-column:1/${N + 3}"></div>`); });
+  h.push(`<div class="selband" id="selBand" style="grid-column:1/${N + 3};display:none"></div>`);
+  h.push(`<div class="card" id="card" style="${all}"></div>`);
+  h.push(`<div class="selpill" id="selPill" style="display:none"></div>`);
+  trips.forEach((t, i) => h.push(`<div class="head" data-i="${i}" style="grid-row:1;grid-column:${i + 2}"></div>`));
+
+  // 時刻・区間：隣と同じ便の区間は横長の1マスにまとめる
+  runsByKey = {};
+  for (const l of lines) {
+    const runs = [];
+    for (let i = 0; i < N; ) {
+      const sig = trips[i].joins?.[l.key];
+      let j = i;
+      while (sig && j + 1 < N && trips[j + 1].joins?.[l.key] === sig) j++;
+      runs.push({ from: i, to: j });
+      const inner = l.kind === "leg" ? legHtml(trips[j], l) : (trips[j].times[l.key] ?? "—");
+      const empty = l.kind !== "leg" && !trips[j].times[l.key];
+      const pos = `grid-row:${l.gridRow};grid-column:${i + 2}/span ${j - i + 1}`;
+      const data = `data-key="${l.key}" data-from="${i}" data-to="${j}"`;
+      h.push(j > i
+        ? `<div class="mcell ${l.cls}" ${data} style="${pos}"><div class="band"></div><div class="t">${inner}</div></div>`
+        : `<div class="cell ${l.cls}${empty ? " empty" : ""}" ${data} style="${pos}">${inner}</div>`);
+      i = j + 1;
+    }
+    runsByKey[l.key] = runs;
+  }
+  track.innerHTML = h.join("");
 
   $("map").innerHTML = trips.map((t, i) =>
-    `<button class="tick ${status[i] || ""}" data-i="${i}" aria-label="No.${t.no}"><i></i></button>`).join("");
-  $("map").querySelectorAll(".tick").forEach((b) =>
-    b.addEventListener("click", () => scrollToIdx(Number(b.dataset.i))));
-  const homeKey = (() => { const s = tt.rows[0]; return `${s.id}.${s.times[s.times.length - 1]}`; })();
-  $("capL").textContent = `${tt.rows[0].name} ${trips[0].times[homeKey] ?? ""}`;
-  $("capR").textContent = `${trips[N - 1].times[homeKey] ?? ""}`;
+    `<button class="tick" data-i="${i}" aria-label="No.${t.no}"><i></i></button>`).join("");
+  $("map").querySelectorAll(".tick").forEach((b) => b.addEventListener("click", () => scrollToIdx(Number(b.dataset.i))));
   centerIdx = -1;
 }
 
-function legHtml(trip, row, next) {
-  const leg = trip.legs[row.id];
+function legHtml(trip, l) {
+  const leg = trip.legs[l.key];
   if (leg) return `<span style="color:${leg.color}">↓</span><span class="pill" style="background:${leg.color}">${leg.label}</span>`;
-  const nextKey = `${next.id}.${next.times[0]}`;
+  const nextKey = `${l.next.id}.${l.next.times[0]}`;
   return trip.times[nextKey] ? "↓" : `<span style="opacity:.4">—</span>`;
 }
 
-function joinClass(i, key) {
-  const id = trips[i].joins?.[key];
-  if (!id) return "";
-  const c = [];
-  if (i > 0 && trips[i - 1].joins?.[key] === id) c.push("join-l");
-  if (i < N - 1 && trips[i + 1].joins?.[key] === id) c.push("join-r");
-  return c.join(" ");
+function runOf(key, i) {
+  return (runsByKey[key] || []).find((r) => r.from <= i && i <= r.to) || { from: i, to: i };
 }
 
 // ---------- レイアウト・スクロール ----------
@@ -364,20 +407,36 @@ function scrollToIdx(i, smooth = true) {
 function setCenter(i) {
   if (i === centerIdx) return;
   centerIdx = i;
-  track.querySelectorAll(".col.center").forEach((c) => c.classList.remove("center"));
-  track.querySelector(`.col[data-idx="${i}"]`)?.classList.add("center");
+  $("card").style.gridColumn = `${i + 2}`;
+  track.querySelectorAll(".c").forEach((e) => e.classList.remove("c"));
+  track.querySelectorAll(`.head[data-i="${i}"]`).forEach((e) => e.classList.add("c"));
+  track.querySelectorAll("[data-from]").forEach((e) => {
+    if (Number(e.dataset.from) <= i && i <= Number(e.dataset.to)) e.classList.add("c");
+  });
   $("map").querySelectorAll(".tick").forEach((b, j) => {
     b.classList.toggle("cur", j === i);
     b.classList.toggle("vis", Math.abs(j - i) === 1);
   });
+  placeSelPill();
   updateCountdown();
+}
+
+function placeSelPill() {
+  const pill = $("selPill");
+  const l = lines.find((x) => x.key === selKey);
+  // 中央のスジの時刻が中央に表示されているときだけ強調（合流区間で時刻が右側にあるときは出さない）
+  if (!l || centerIdx < 0 || runOf(selKey, centerIdx).to !== centerIdx || !trips[centerIdx].times[selKey]) {
+    pill.style.display = "none"; return;
+  }
+  pill.style.display = "";
+  pill.style.gridRow = `${l.gridRow}`;
+  pill.style.gridColumn = `${centerIdx + 2}`;
 }
 
 let raf = 0;
 scroller.addEventListener("scroll", () => {
   cancelAnimationFrame(raf);
-  raf = requestAnimationFrame(() =>
-    setCenter(Math.max(0, Math.min(N - 1, Math.round(scroller.scrollLeft / colW)))));
+  raf = requestAnimationFrame(() => setCenter(Math.max(0, Math.min(N - 1, Math.round(scroller.scrollLeft / colW)))));
 }, { passive: true });
 
 window.addEventListener("resize", () => { const k = centerIdx; layout(); centerIdx = -1; scrollToIdx(k, false); });
@@ -397,32 +456,35 @@ function selectStop(row, smooth) {
     for (let i = N - 1; i >= 0; i--) if (trips[i].times[key]) { idx = i; break; }
     toast("これ以降のスジはありません（最終を表示）");
   }
+  // 合流区間の中なら、まとまりの最後のスジ（時刻が表示される列）を中央にする
+  if (idx >= 0) idx = runOf(key, idx).to;
+
   selStopName = row.name;
   selKey = key;
   labelsEl.querySelectorAll(".stop-label").forEach((b) => b.classList.toggle("selected", b.dataset.name === row.name));
-  track.querySelectorAll(".cell.sel").forEach((c) => c.classList.remove("sel"));
-  track.querySelectorAll(`.cell[data-key="${key}"]`).forEach((c) => c.classList.add("sel"));
-  if (idx >= 0) scrollToIdx(idx, smooth);
-  updateCountdown();
+  const l = lines.find((x) => x.key === key);
+  $("selBand").style.display = "";
+  $("selBand").style.gridRow = `${l.gridRow}`;
+  if (idx >= 0) { centerIdx = -1; scrollToIdx(idx, smooth); }
 }
 
 // ---------- 残り時間（表示位置は動かさず、数字だけ更新する） ----------
 function updateCountdown() {
-  if (!tt || centerIdx < 0 || !selKey) return;
+  if (!dir || centerIdx < 0 || !selKey) return;
   const trip = trips[centerIdx];
-  const row = tt.rows.find((r) => r.type === "stop" && selKey.startsWith(r.id + "."));
+  const row = dir.rows.find((r) => r.type === "stop" && selKey.startsWith(r.id + "."));
   const kind = selKey.split(".")[1];
   const v = trip.times[selKey];
   const card = $("count");
   card.className = "count";
 
-  // 2行目：このスジの学校着と締切
+  const g = dir.goals[goalIdx];
   const st = status[centerIdx];
   const arr = schoolKey ? trip.times[schoolKey] : null;
-  const last = tt.rows[tt.rows.length - 1];
+  const last = dir.rows[dir.rows.length - 1];
   let sub = `No.${trip.no}`;
   if (arr) sub += ` ・ ${last.name} ${arr}着`;
-  if (tt.deadline) sub += `（締切 ${tt.deadline}）`;
+  if (g?.deadline) sub += `（${g.name} ${g.deadline}まで）`;
   if (st === "deadline") sub += `<span class="chip deadline">間に合う最終</span>`;
   if (st === "late") sub += `<span class="chip late">遅刻</span>`;
   $("cSub").innerHTML = sub;
@@ -461,9 +523,9 @@ function toast(msg) {
 }
 
 // ---------- 起動 ----------
-buildTabs();
-const saved = DATA.timetables.findIndex((t) => t.name === store.get("tt"));
-switchTimetable(saved >= 0 ? saved : 0, false);
+buildBar();
+const savedDir = DATA.directions.findIndex((d) => d.name === store.get("dir"));
+switchDirection(savedDir >= 0 ? savedDir : 0);
 </script>
 </body>
 </html>

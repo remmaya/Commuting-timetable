@@ -1,4 +1,4 @@
-﻿表示名,ファイル,シート,締切（学校着）
-平日 1限,timetable.xlsx,平日１限,8:50
-平日 2限,timetable.xlsx,平日２限,9:50
-平日 3限,timetable.xlsx,平日３限,10:50
+﻿方向,目標,ファイル,シート,締切（学校着）
+往路,1限,timetable.xlsx,平日１限,8:50
+往路,2限,timetable.xlsx,平日２限,9:50
+往路,3限,timetable.xlsx,平日３限,10:50

@@ -32,26 +32,32 @@ st.markdown(
 
 
 @st.cache_data
-def load(mtimes):  # CSVを書き換えたら（更新日時が変われば）読み直す
+def load(mtimes):  # データファイルを書き換えたら（更新日時が変われば）読み直す
     return load_all()
 
 
 data_dir = Path(__file__).parent / "data"
-mtimes = tuple(sorted((p.name, p.stat().st_mtime) for p in data_dir.glob("*.csv")))
+mtimes = tuple(sorted((p.name, p.stat().st_mtime) for p in data_dir.iterdir()
+                      if p.suffix.lower() in (".csv", ".xlsx", ".xlsm")))
 try:
-    timetables = load(mtimes)
+    data = load(mtimes)
 except TimetableError as e:
     st.error(f"時刻表データの読み込みに失敗しました\n\n{e}")
     st.stop()
 
+if data["warnings"]:
+    with st.expander(f"⚠️ 時刻表データの確認（{len(data['warnings'])}件）"):
+        for w in data["warnings"]:
+            st.write("・" + w)
+
 html = (Path(__file__).parent / "timetable.html").read_text(encoding="utf-8")
-html = html.replace("/*__DATA__*/null", json.dumps({"timetables": timetables}, ensure_ascii=False))
+html = html.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False))
 
 
 # 高さ（timetable.html の CSS 変数と合わせる）
-def table_height(tt):
+def table_height(d):
     h = 36  # 見出し行
-    for r in tt["rows"]:
+    for r in d["rows"]:
         if r["type"] == "leg":
             h += 30
         elif len(r["times"]) == 1:
@@ -61,5 +67,5 @@ def table_height(tt):
     return h
 
 
-height = 50 + 80 + max(table_height(t) for t in timetables) + 2 + 50 + 64
+height = 52 + 80 + max(table_height(d) for d in data["directions"]) + 2 + 50 + 64
 components.html(html, height=height, scrolling=False)

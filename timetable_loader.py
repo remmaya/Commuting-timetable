@@ -1,6 +1,6 @@
 """時刻表の読み込み。
 
-data/timetables.csv … 時刻表の一覧（表示名・ファイル・シート・締切）
+data/timetables.csv … 方向・目標・ファイル・シート・締切。同じ方向のシートは1本の時刻表にまとめる
 data/colors.csv     … 種別・系統の表示色
 data/*.xlsx / *.csv  … 時刻表本体（縦：地点、横：スジ）。Excelはシートをそのまま読む
 
@@ -147,7 +147,8 @@ def load_timetable(path: Path, colors: dict[str, str], sheet: str = "") -> dict:
             out.append(v)
         return out
 
-    rows, trips = [], [{"no": j + 1, "times": {}, "legs": {}} for j in range(n)]
+    rows, trips = [], [{"no": j + 1, "times": {}, "legs": {}, "src": f"{path.name} {_col(j + 2)}列"}
+                       for j in range(n)]
     stop = None
     for li, row in enumerate(body, start=first + 1):
         row = row + ["", ""]
@@ -189,7 +190,6 @@ def load_timetable(path: Path, colors: dict[str, str], sheet: str = "") -> dict:
         if r["type"] == "stop":
             r["times"].sort(key=lambda k: 0 if k == "arr" else 1)
 
-    _compute_joins(rows, trips)
     return {"rows": rows, "trips": trips}
 
 
@@ -220,15 +220,63 @@ def _compute_joins(rows, trips):
             t["joins"][r["id"]] = t["joins"][kb] = sig
 
 
-def load_all() -> list[dict]:
+def _shape(tt):
+    return [(r["type"], r.get("name"), tuple(r.get("times", ()))) for r in tt["rows"]]
+
+
+def _compatible(part, full):
+    """part の書いてある値がすべて full と一致するか（途中までしか書いていないスジの判定）。"""
+    for k, v in part["times"].items():
+        if v is not None and full["times"].get(k) != v:
+            return False
+    for k, v in part["legs"].items():
+        if v is not None and (full["legs"].get(k) or {}).get("label") != v["label"]:
+            return False
+    return True
+
+
+def _merge_trips(rows, trips):
+    """複数シートのスジを1本にまとめる。
+    ・すべて同じスジは1本に
+    ・途中までしか書いていないスジは、同じ内容で最後まで書いてあるスジがあれば除く
+    ・バスの選び方などが違うスジは両方残す
+    """
+    keys = [f"{r['id']}.{k}" for r in rows if r["type"] == "stop" for k in r["times"]]
+    last = keys[-1]
+    sig = lambda t: (tuple(t["times"].get(k) for k in keys),
+                     tuple(sorted((k, v["label"]) for k, v in t["legs"].items() if v)))
+    seen, uniq = set(), []
+    for t in trips:
+        if sig(t) not in seen:
+            seen.add(sig(t))
+            uniq.append(t)
+    full = [t for t in uniq if t["times"].get(last)]
+    kept = [t for t in uniq if t["times"].get(last)
+            or not any(_compatible(t, f) for f in full if f is not t)]
+
+    def order(t):
+        return [(0, _min(t["times"][k])) if t["times"].get(k) else (1, 0) for k in keys]
+    kept.sort(key=order)
+    for i, t in enumerate(kept):
+        t["no"] = i + 1
+    return kept
+
+
+def _min(s):
+    h, m = s.split(":")
+    return int(h) * 60 + int(m)
+
+
+def load_all() -> dict:
+    """timetables.csv の「方向」ごとに、シートを1本の時刻表にまとめて返す。"""
     colors = load_colors()
     index = _read_csv(DATA_DIR / "timetables.csv")
-    result = []
     filled = [i for i, r in enumerate(index) if any(r)]
+    directions: dict[str, dict] = {}
     for li, row in enumerate(index[filled[0] + 1:] if filled else [], start=(filled[0] + 2) if filled else 2):
-        row = row + ["", "", "", ""]
-        name, file, sheet, deadline = row[0], row[1], row[2], row[3]
-        if not name:
+        row = row + [""] * 5
+        dname, goal, file, sheet, deadline = row[:5]
+        if not dname:
             continue
         path = DATA_DIR / file
         if not path.exists():
@@ -236,9 +284,37 @@ def load_all() -> list[dict]:
         if path.suffix.lower() in (".xlsx", ".xlsm") and not sheet:
             raise TimetableError(f"timetables.csv {li}行目: Excelファイルにはシート名が必要です")
         tt = load_timetable(path, colors, sheet)
-        tt["name"] = name
-        tt["deadline"] = _norm_time(deadline, f"timetables.csv {li}行目 締切") if deadline else None
-        result.append(tt)
-    if not result:
+        d = directions.setdefault(dname, {"name": dname, "rows": tt["rows"], "trips": [], "goals": []})
+        if _shape(tt) != [(r["type"], r.get("name"), tuple(r.get("times", ()))) for r in d["rows"]]:
+            raise TimetableError(f"timetables.csv {li}行目: {file}「{sheet}」の地点の並びが、"
+                                 f"同じ「{dname}」のほかのシートと違います")
+        d["trips"] += tt["trips"]
+        if goal:
+            d["goals"].append({"name": goal,
+                               "deadline": _norm_time(deadline, f"timetables.csv {li}行目 締切") if deadline else None})
+    if not directions:
         raise TimetableError("timetables.csv に時刻表が登録されていません")
-    return result
+    warnings = []
+    for d in directions.values():
+        d["trips"] = _merge_trips(d["rows"], d["trips"])
+        _compute_joins(d["rows"], d["trips"])
+        warnings += _check_order(d)
+    return {"directions": list(directions.values()), "warnings": warnings}
+
+
+def _check_order(d):
+    """時刻が前の地点より早くなっているところを探す（入力ミスや結合セルの範囲違いの発見用）。"""
+    labels = [(f"{r['id']}.{k}", f"{r['name']}{'着' if k == 'arr' else '発'}")
+              for r in d["rows"] if r["type"] == "stop" for k in r["times"]]
+    out = []
+    for t in d["trips"]:
+        prev = None
+        for key, name in labels:
+            v = t["times"].get(key)
+            if not v:
+                continue
+            if prev and _min(v) < _min(prev[1]):
+                out.append(f"{t['src']}（自宅 {t['times'][labels[0][0]]} 発のスジ）: "
+                           f"{prev[0]} {prev[1]} のあとに {name} {v} になっています")
+            prev = (name, v)
+    return out
