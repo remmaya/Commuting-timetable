@@ -345,8 +345,7 @@ def load_all() -> dict:
         raise TimetableError("timetables.csv に時刻表が登録されていません")
     warnings = []
     for d in directions.values():
-        if "stations" in d:
-            _compute_joins(d["rows"], d["trips"])
+        if "stations" in d:   # 区間ごと：乗り継ぎと合流は segment_loader で計算済み
             continue
         d["trips"] = _merge_trips(d["rows"], d["trips"])
         _compute_joins(d["rows"], d["trips"])

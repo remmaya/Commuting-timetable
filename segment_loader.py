@@ -37,7 +37,7 @@ def _station(s: str) -> str:
 def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
     fn = path.name
     # 設定
-    walk, transfer = {}, None
+    walk, transfer, sz_transfer_cfg = {}, None, None
     for li, r in _sheet(path, "設定"):
         item, val = r[0].strip(), (r[1] if len(r) > 1 else "").strip()
         if not val:
@@ -46,7 +46,9 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
             v = int(float(val))
         except ValueError:
             raise TimetableError(f"{fn}「設定」{li}行目: 値「{val}」が数字ではありません")
-        if "乗り換え" in item:
+        if "笹塚" in item and "乗り換え" in item:
+            sz_transfer_cfg = v
+        elif "乗り換え" in item:
             transfer = v
         elif "→" in item:
             stop = item.split("→")[1].replace("徒歩", "").strip()
@@ -90,8 +92,23 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
             continue
         if _min(arr) <= _min(dep):
             raise TimetableError(f"{where}: 新宿着 {arr} が調布発 {dep} より前です")
-        trains.append({"dep": _min(dep), "type": r[1].strip(), "st": _station(r[2]), "arr": _min(arr)})
+        sz = _norm_time(r[4], where + " E列") if len(r) > 4 else None
+        trains.append({"dep": _min(dep), "type": r[1].strip(), "st": _station(r[2]), "arr": _min(arr),
+                       "sz": _min(sz) if sz else None})
 
+    # 笹塚（新線新宿方面）。シートがなければ笹塚乗換は作らない
+    sz_trains, sz_transfer = [], 1
+    import openpyxl
+    if "笹塚" in openpyxl.load_workbook(path, read_only=True).sheetnames:
+        for li, r in _sheet(path, "笹塚"):
+            r = r + [""] * 3
+            where = f"{fn}「笹塚」{li}行目"
+            d, a = _norm_time(r[0], where + " A列"), _norm_time(r[1], where + " B列")
+            if d and a:
+                sz_trains.append({"dep": _min(d), "arr": _min(a), "type": r[2].strip()})
+
+    if sz_transfer_cfg is not None:
+        sz_transfer = sz_transfer_cfg
     rows = [
         {"type": "stop", "id": "s0", "name": "学校", "times": ["dep"]},
         {"type": "leg", "id": "l1"},
@@ -101,33 +118,74 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
         {"type": "leg", "id": "l5"},
         {"type": "stop", "id": "s6", "name": "新宿駅", "times": ["arr"]},
     ]
+    rows_sz = rows[:5] + [
+        {"type": "leg", "id": "l5"},
+        {"type": "stop", "id": "sz", "name": "笹塚", "times": ["arr", "dep"]},
+        {"type": "leg", "id": "lz"},
+        rows[6],
+    ]
     gray = "#80868b"
-    trips = []
+    key = lambda t: (t["arr"], -t["dep"])   # 新宿に一番早く着く。同着なら調布での待ちが短い方
+
+    def make(b, t, st, via=None):
+        short = TYPE_SHORT.get(t["type"], t["type"][:1])
+        trip = {
+            "times": {"s0.dep": _fm(b["dep"] - walk[b["stop"]]), "s2.dep": _fm(b["dep"]),
+                      "s4.arr": _fm(b["arr"]), "s4.dep": _fm(t["dep"])},
+            "legs": {"l1": {"label": STOP_SHORT.get(b["stop"], b["stop"][:2]), "color": gray},
+                     "l3": {"label": b["route"], "color": colors.get(b["route"], gray)},
+                     "l5": {"label": short, "color": colors.get(short, gray)}},
+            "marks": {"s6.arr": "京" if st == "京王" else "新"},
+            "src": f"{fn} バス {b['stop']} {_fm(b['dep'])}",
+            "bus": f"{b['stop']}|{b['route']}|{b['dep']}",
+        }
+        if via:   # 笹塚で新線に乗り換え
+            trip["times"].update({"sz.arr": _fm(t["sz"]), "sz.dep": _fm(via["dep"]), "s6.arr": _fm(via["arr"])})
+            vs = TYPE_SHORT.get(via["type"], via["type"][:1]) if via["type"] else None
+            trip["legs"]["lz"] = {"label": vs, "color": colors.get(vs, gray)} if vs else None
+            trip["prefer"] = True   # 地点をタップしたとき、同じバスの中ではこのスジ（先着）を中央に
+        else:
+            trip["times"]["s6.arr"] = _fm(t["arr"])
+        return trip
+
+    views = {"": [], "京王": [], "新線": []}
     for b in buses:
         ok = [t for t in trains if t["dep"] >= b["arr"] + transfer]
-        best = {}
-        for st in STATIONS:
-            c = [t for t in ok if t["st"] == st]
-            if c:   # 新宿に一番早く着く列車。同着なら調布での待ちが短い方
-                best[st] = min(c, key=lambda t: (t["arr"], -t["dep"]))
-        if not best:
+        best = {st: min((t for t in ok if t["st"] == st), key=key, default=None) for st in STATIONS}
+        cands = [t for t in best.values() if t]
+        if not cands:
             continue
-        overall = min(best.values(), key=lambda t: (t["arr"], -t["dep"]))
-        for st, t in best.items():
-            short = TYPE_SHORT.get(t["type"], t["type"][:1])
-            trips.append({
-                "times": {"s0.dep": _fm(b["dep"] - walk[b["stop"]]), "s2.dep": _fm(b["dep"]),
-                          "s4.arr": _fm(b["arr"]), "s4.dep": _fm(t["dep"]), "s6.arr": _fm(t["arr"])},
-                "legs": {"l1": {"label": STOP_SHORT.get(b["stop"], b["stop"][:2]), "color": gray},
-                         "l3": {"label": b["route"], "color": colors.get(b["route"], gray)},
-                         "l5": {"label": short, "color": colors.get(short, gray)}},
-                "marks": {"s6.arr": "京" if st == "京王" else "新"},
-                "station": st,
-                "best": t is overall,
-                "src": f"{fn} バス {b['stop']} {_fm(b['dep'])}",
-            })
-    trips.sort(key=lambda t: (_min(t["times"]["s0.dep"]), _min(t["times"]["s6.arr"])))
-    for i, t in enumerate(trips):
-        t["no"] = i + 1
-    return {"name": name, "rows": rows, "trips": trips, "goals": [],
+        overall = min(cands, key=key)
+        views[""].append(make(b, overall, overall["st"]))
+        if best["京王"]:
+            views["京王"].append(make(b, best["京王"], "京王"))
+        if best["新線"]:
+            views["新線"].append(make(b, best["新線"], "新線"))
+        # 特急で笹塚へ行き、新線に乗り換える（直通より早く着くときだけ）
+        if sz_trains:
+            opts = []
+            for t in ok:
+                if t["sz"] is None:
+                    continue
+                v = min((x for x in sz_trains if x["dep"] >= t["sz"] + sz_transfer), key=key, default=None)
+                if v:
+                    opts.append((v["arr"], -t["dep"], t, v))
+            if opts:
+                arr, _, t, v = min(opts, key=lambda o: o[:2])
+                if not best["新線"] or arr < best["新線"]["arr"]:
+                    views["新線"].append(make(b, t, "新線", via=v))
+
+    from timetable_loader import _compute_joins
+    out = {}
+    for k, ts in views.items():
+        ts.sort(key=lambda t: (_min(t["times"]["s0.dep"]), _min(t["times"]["s6.arr"])))
+        r = rows_sz if (k == "新線" and sz_trains) else rows
+        _compute_joins(r, ts)
+        for t in ts:   # 同じバスに乗るスジは、学校を出るところからバスを降りるまで合流
+            for k2 in ("s0.dep", "l1", "s2.dep", "l3", "s4.arr"):
+                t["joins"][k2] = t["bus"]
+        for i, t in enumerate(ts):
+            t["no"] = i + 1
+        out[k] = {"rows": r, "trips": ts}
+    return {"name": name, "rows": rows, "trips": out[""]["trips"], "views": out, "goals": [],
             "stations": [{"key": "", "name": "どちらでも"}] + [{"key": k, "name": v} for k, v in STATIONS.items()]}

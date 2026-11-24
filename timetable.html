@@ -129,6 +129,7 @@
   .is-deadline { color: var(--warn) !important; }
   .is-deadline .t::after, .cell.is-deadline::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 7px;
     height: 2px; border-radius: 1px; background: var(--warn); }
+  .thru { font-size: 12px; color: var(--muted); font-weight: 500; }
   .mk { font-size: 10px; font-weight: 700; margin-left: 3px; padding: 1px 3px; border-radius: 4px; align-self: center; }
   .mk-京 { background: #fce8e6; color: #c5221f; }
   .mk-新 { background: #e6f4ea; color: #137333; }
@@ -204,7 +205,7 @@ const KIND_LABEL = { arr: "着", dep: "発" };
 const $ = (id) => document.getElementById(id);
 const scroller = $("scroller"), track = $("track"), labelsEl = $("labels");
 
-let dir = null, trips = [], N = 0;
+let dir = null, rows = [], trips = [], N = 0;
 let lines = [];          // 表の各行（時刻または区間）: {key, gridRow, row, kind, cls}
 let colW = 96, centerIdx = -1;
 let goalIdx = 0;
@@ -255,8 +256,10 @@ function buildStations() {
 function applyTrips() {
   if (dir.stations) {
     $("goals").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.k === stationKey));
-    trips = dir.trips.filter((t) => stationKey ? t.station === stationKey : t.best);
+    rows = dir.views[stationKey].rows;
+    trips = dir.views[stationKey].trips;
   } else {
+    rows = dir.rows;
     trips = dir.trips;
   }
   N = trips.length;
@@ -264,7 +267,7 @@ function applyTrips() {
   build();
   layout();
   renderGoal();
-  const stops = dir.rows.filter((r) => r.type === "stop");
+  const stops = rows.filter((r) => r.type === "stop");
   const stop = stops.find((s) => s.name === selStopName) || stops[0];
   selectStop(stop, false);
 }
@@ -287,7 +290,7 @@ function switchDirection(i) {
   dir = DATA.directions[i];
   $("dirs").querySelectorAll("button").forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === i));
   const stops = dir.rows.filter((r) => r.type === "stop");
-  const last = stops[stops.length - 1];
+  const last = stops[stops.length - 1];   // 最後の地点（学校／新宿）は表示の切り替えで変わらない
   schoolKey = last.times.includes("arr") ? `${last.id}.arr` : null;
   if (dir.stations) buildStations(); else buildGoals();
   selStopName = null;   // 方向を切り替えたら最初の地点（自宅／学校）から
@@ -344,7 +347,7 @@ function build() {
   labelsEl.innerHTML = `<div class="head">地点</div>`;
   lines = [];
   const heights = ["var(--head-h)"];
-  dir.rows.forEach((row, ri) => {
+  rows.forEach((row, ri) => {
     if (row.type === "stop") {
       const b = document.createElement("button");
       b.className = "stop-label";
@@ -359,7 +362,7 @@ function build() {
       labelsEl.appendChild(b);
     } else {
       labelsEl.insertAdjacentHTML("beforeend", `<div class="leg-label"></div>`);
-      lines.push({ key: row.id, row, kind: "leg", cls: "k-leg", last: true, next: dir.rows[ri + 1] });
+      lines.push({ key: row.id, row, kind: "leg", cls: "k-leg", last: true, next: rows[ri + 1] });
       heights.push("var(--leg-h)");
     }
   });
@@ -388,10 +391,11 @@ function build() {
       let j = i;
       while (sig && j + 1 < N && trips[j + 1].joins?.[l.key] === sig) j++;
       runs.push({ from: i, to: j });
+      const thru = l.kind !== "leg" && !trips[j].times[l.key] && l.row.id === "sz" && trips[j].times["s6.arr"];
       const mk = trips[j].marks?.[l.key];
       const inner = l.kind === "leg" ? legHtml(trips[j], l)
-        : (trips[j].times[l.key] ?? "—") + (mk ? `<span class="mk mk-${mk}">${mk}</span>` : "");
-      const empty = l.kind !== "leg" && !trips[j].times[l.key];
+        : (thru ? `<span class="thru">${l.kind === "arr" ? "直通" : "↓"}</span>` : (trips[j].times[l.key] ?? "—")) + (mk ? `<span class="mk mk-${mk}">${mk}</span>` : "");
+      const empty = l.kind !== "leg" && !trips[j].times[l.key] && !thru;
       const pos = `grid-row:${l.gridRow};grid-column:${i + 2}/span ${j - i + 1}`;
       const data = `data-key="${l.key}" data-from="${i}" data-to="${j}"`;
       h.push(j > i
@@ -487,7 +491,12 @@ function selectStop(row, smooth) {
     toast("これ以降のスジはありません（最終を表示）");
   }
   // 合流区間の中なら、まとまりの最後のスジ（時刻が表示される列）を中央にする
-  if (idx >= 0) idx = runOf(key, idx).to;
+  if (idx >= 0) {
+    const run = runOf(key, idx);
+    idx = run.to;
+    // 同じ便のまとまりの中に「優先」のスジ（復路の笹塚乗換＝先着）があれば、それを中央に
+    for (let k = run.from; k <= run.to; k++) if (trips[k].prefer) { idx = k; break; }
+  }
 
   selStopName = row.name;
   selKey = key;
@@ -502,7 +511,7 @@ function selectStop(row, smooth) {
 function updateCountdown() {
   if (!dir || centerIdx < 0 || !selKey) return;
   const trip = trips[centerIdx];
-  const row = dir.rows.find((r) => r.type === "stop" && selKey.startsWith(r.id + "."));
+  const row = rows.find((r) => r.type === "stop" && selKey.startsWith(r.id + "."));
   const kind = selKey.split(".")[1];
   const v = trip.times[selKey];
   const card = $("count");
@@ -511,7 +520,7 @@ function updateCountdown() {
   const g = dir.goals[goalIdx];
   const st = status[centerIdx];
   const arr = schoolKey ? trip.times[schoolKey] : null;
-  const last = dir.rows[dir.rows.length - 1];
+  const last = rows[rows.length - 1];
   let sub = `No.${centerIdx + 1}`;
   if (arr) sub += ` ・ ${last.name} ${arr}着`;
   if (g?.deadline) sub += `（${g.name} ${g.deadline}まで）`;
