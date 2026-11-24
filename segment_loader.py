@@ -188,4 +188,5 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
             t["no"] = i + 1
         out[k] = {"rows": r, "trips": ts}
     return {"name": name, "rows": rows, "trips": out[""]["trips"], "views": out, "goals": [],
+            "busStops": [w for w in walk if any(b["stop"] == w for b in buses)],   # 設定シートの順
             "stations": [{"key": "", "name": "どちらでも"}] + [{"key": k, "name": v} for k, v in STATIONS.items()]}

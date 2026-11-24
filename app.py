@@ -67,5 +67,5 @@ def table_height(d):
     return h
 
 
-height = 52 + 80 + max(table_height(d) for d in data["directions"]) + 2 + 50 + 64
+height = 52 + 46 + 80 + max(table_height(d) for d in data["directions"]) + 2 + 50 + 64
 components.html(html, height=height, scrolling=False)

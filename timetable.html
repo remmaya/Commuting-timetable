@@ -55,6 +55,8 @@
     font-weight: 700; color: var(--ink-2); line-height: 1.1; white-space: nowrap; }
   .seg button small { display: block; font-size: 10px; font-weight: 500; color: var(--muted); }
   .seg button.active { background: var(--bg); color: var(--accent-ink); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+  .bar .lbl { font-size: 12px; font-weight: 700; color: var(--ink-2); padding: 0 4px 0 6px; white-space: nowrap; }
+  #stops button { font-size: 13px; padding: 5px 4px; }
   .bar .cap { font-size: 11px; color: var(--muted); writing-mode: vertical-rl; letter-spacing: 2px; }
 
   /* ---- 残り時間カード ---- */
@@ -177,6 +179,10 @@
     <div class="seg" id="dirs"></div>
     <div class="seg goals" id="goals"></div>
   </div>
+  <div class="bar" id="stopBar" style="display:none">
+    <span class="lbl">バス停</span>
+    <div class="seg goals" id="stops"></div>
+  </div>
   <div class="count" id="count">
     <div class="what"><div class="target" id="cTarget"></div><div class="sub" id="cSub"></div></div>
     <div class="remain" id="cRemain"></div>
@@ -239,7 +245,22 @@ function buildBar() {
   $("dirs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => switchDirection(Number(b.dataset.i))));
 }
 
-let stationKey = "";
+let stationKey = "", stopKey = "";
+function buildStops() {
+  const has = !!dir.busStops;
+  $("stopBar").style.display = has ? "" : "none";
+  if (!has) { stopKey = ""; return; }
+  const opts = [""].concat(dir.busStops);
+  $("stops").innerHTML = opts.map((k) => `<button data-k="${k}">${k || "どちらでも"}</button>`).join("");
+  $("stops").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    stopKey = b.dataset.k;
+    store.set(`stop:${dir.name}`, stopKey);
+    applyTrips();
+  }));
+  const saved = store.get(`stop:${dir.name}`);
+  stopKey = opts.includes(saved) ? saved : "";
+}
+
 function buildStations() {
   $("goals").style.display = "";
   $("goals").innerHTML = dir.stations.map((st, i) => `<button data-k="${st.key}">${st.name}</button>`).join("");
@@ -257,7 +278,9 @@ function applyTrips() {
   if (dir.stations) {
     $("goals").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.k === stationKey));
     rows = dir.views[stationKey].rows;
-    trips = dir.views[stationKey].trips;
+    // バス停で絞り込む（乗るバス停が選んだものだけ）
+    $("stops").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.k === stopKey));
+    trips = dir.views[stationKey].trips.filter((t) => !stopKey || t.bus.startsWith(stopKey + "|"));
   } else {
     rows = dir.rows;
     trips = dir.trips;
@@ -293,6 +316,7 @@ function switchDirection(i) {
   const last = stops[stops.length - 1];   // 最後の地点（学校／新宿）は表示の切り替えで変わらない
   schoolKey = last.times.includes("arr") ? `${last.id}.arr` : null;
   if (dir.stations) buildStations(); else buildGoals();
+  buildStops();
   selStopName = null;   // 方向を切り替えたら最初の地点（自宅／学校）から
   applyTrips();
 }
