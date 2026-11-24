@@ -129,6 +129,9 @@
   .is-deadline { color: var(--warn) !important; }
   .is-deadline .t::after, .cell.is-deadline::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 7px;
     height: 2px; border-radius: 1px; background: var(--warn); }
+  .mk { font-size: 10px; font-weight: 700; margin-left: 3px; padding: 1px 3px; border-radius: 4px; align-self: center; }
+  .mk-京 { background: #fce8e6; color: #c5221f; }
+  .mk-新 { background: #e6f4ea; color: #137333; }
   .pill { font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 7px; border-radius: 999px; color: #fff; }
 
   /* 合流区間：帯は右向きの矢印形。時刻は帯の右端（画面からはみ出すときは画面の右端）に表示 */
@@ -235,6 +238,37 @@ function buildBar() {
   $("dirs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => switchDirection(Number(b.dataset.i))));
 }
 
+let stationKey = "";
+function buildStations() {
+  $("goals").style.display = "";
+  $("goals").innerHTML = dir.stations.map((st, i) => `<button data-k="${st.key}">${st.name}</button>`).join("");
+  $("goals").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    stationKey = b.dataset.k;
+    store.set(`st:${dir.name}`, stationKey);
+    applyTrips();
+  }));
+  const saved = store.get(`st:${dir.name}`);
+  stationKey = dir.stations.some((st) => st.key === saved) ? saved : "";
+}
+
+// 復路：新宿の駅で絞り込む（どちらでも＝バスごとに新宿へ一番早く着く方）
+function applyTrips() {
+  if (dir.stations) {
+    $("goals").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.k === stationKey));
+    trips = dir.trips.filter((t) => stationKey ? t.station === stationKey : t.best);
+  } else {
+    trips = dir.trips;
+  }
+  N = trips.length;
+  computeGoalLast();
+  build();
+  layout();
+  renderGoal();
+  const stops = dir.rows.filter((r) => r.type === "stop");
+  const stop = stops.find((s) => s.name === selStopName) || stops[0];
+  selectStop(stop, false);
+}
+
 function buildGoals() {
   const goals = dir.goals.filter((g) => g.deadline);
   $("goals").style.display = goals.length ? "" : "none";
@@ -251,19 +285,13 @@ function buildGoals() {
 
 function switchDirection(i) {
   dir = DATA.directions[i];
-  trips = dir.trips; N = trips.length;
-  store.set("dir", dir.name);
   $("dirs").querySelectorAll("button").forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === i));
   const stops = dir.rows.filter((r) => r.type === "stop");
   const last = stops[stops.length - 1];
   schoolKey = last.times.includes("arr") ? `${last.id}.arr` : null;
-  buildGoals();
-  computeGoalLast();
-  build();
-  layout();
-  renderGoal();
-  const stop = stops.find((s) => s.name === selStopName) || stops[0];
-  selectStop(stop, false);
+  if (dir.stations) buildStations(); else buildGoals();
+  selStopName = null;   // 方向を切り替えたら最初の地点（自宅／学校）から
+  applyTrips();
 }
 
 function computeGoalLast() {
@@ -277,7 +305,7 @@ function computeGoalLast() {
 
 function renderGoal() {
   const g = dir.goals[goalIdx];
-  $("goals").querySelectorAll("button").forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === goalIdx));
+  if (!dir.stations) $("goals").querySelectorAll("button").forEach((b) => b.classList.toggle("active", Number(b.dataset.i) === goalIdx));
   status = trips.map((t, i) => {
     if (!g || !g.deadline || !schoolKey || !t.times[schoolKey]) return null;
     if (i === goalLast[goalIdx]) return "deadline";
@@ -289,7 +317,7 @@ function renderGoal() {
     const i = Number(h.dataset.i);
     const tags = dir.goals.map((gg, gi) => goalLast[gi] === i
       ? `<span class="tag ${gi === goalIdx ? "deadline" : "other"}">${gg.name}最終</span>` : "").join("");
-    h.innerHTML = `No.${trips[i].no}${tags}`;
+    h.innerHTML = `No.${i + 1}${tags}`;
     h.classList.toggle("late", status[i] === "late");
   });
   // 学校着の色
@@ -360,7 +388,9 @@ function build() {
       let j = i;
       while (sig && j + 1 < N && trips[j + 1].joins?.[l.key] === sig) j++;
       runs.push({ from: i, to: j });
-      const inner = l.kind === "leg" ? legHtml(trips[j], l) : (trips[j].times[l.key] ?? "—");
+      const mk = trips[j].marks?.[l.key];
+      const inner = l.kind === "leg" ? legHtml(trips[j], l)
+        : (trips[j].times[l.key] ?? "—") + (mk ? `<span class="mk mk-${mk}">${mk}</span>` : "");
       const empty = l.kind !== "leg" && !trips[j].times[l.key];
       const pos = `grid-row:${l.gridRow};grid-column:${i + 2}/span ${j - i + 1}`;
       const data = `data-key="${l.key}" data-from="${i}" data-to="${j}"`;
@@ -482,7 +512,7 @@ function updateCountdown() {
   const st = status[centerIdx];
   const arr = schoolKey ? trip.times[schoolKey] : null;
   const last = dir.rows[dir.rows.length - 1];
-  let sub = `No.${trip.no}`;
+  let sub = `No.${centerIdx + 1}`;
   if (arr) sub += ` ・ ${last.name} ${arr}着`;
   if (g?.deadline) sub += `（${g.name} ${g.deadline}まで）`;
   if (st === "deadline") sub += `<span class="chip deadline">間に合う最終</span>`;
@@ -500,7 +530,8 @@ function updateCountdown() {
   const m = Math.floor(diffSec / 60);
   if (diffSec < 0) {
     const ago = Math.ceil(-diffSec / 60);
-    $("cRemain").innerHTML = `<span>${kind === "dep" ? "発車済み" : "到着済み"}</span><br><small>${ago}分前</small>`;
+    const agoTxt = ago >= 60 ? `${Math.floor(ago / 60)}時間${ago % 60 ? `${ago % 60}分` : ""}前` : `${ago}分前`;
+    $("cRemain").innerHTML = `<span>${kind === "dep" ? "発車済み" : "到着済み"}</span><br><small>${agoTxt}</small>`;
     card.classList.add("past");
   } else if (m === 0) {
     $("cRemain").innerHTML = `<b>まもなく</b>`;
@@ -524,8 +555,9 @@ function toast(msg) {
 
 // ---------- 起動 ----------
 buildBar();
-const savedDir = DATA.directions.findIndex((d) => d.name === store.get("dir"));
-switchDirection(savedDir >= 0 ? savedDir : 0);
+// 起動時は時刻で方向を決める（正午まで往路、それ以降は復路）
+const startDir = Math.floor(nowJstSeconds() / 3600) < 12 ? 0 : DATA.directions.length - 1;
+switchDirection(startDir);
 </script>
 </body>
 </html>

@@ -245,6 +245,7 @@ def _merge_trips(rows, trips):
     last = keys[-1]
     sig = lambda t: (tuple(t["times"].get(k) for k in keys),
                      tuple(sorted((k, v["label"]) for k, v in t["legs"].items() if v)))
+    _inherit_continuation(rows, trips)
     seen, uniq = set(), []
     for t in trips:
         if sig(t) not in seen:
@@ -260,6 +261,48 @@ def _merge_trips(rows, trips):
     for i, t in enumerate(kept):
         t["no"] = i + 1
     return kept
+
+
+def _inherit_continuation(rows, trips):
+    """途中で書くのをやめているスジ（Excelで結合セルの片側だけ先が書いてある等）は、
+    最後に書いてある地点まで同じ便に乗るほかのスジから、その先を引き継ぐ。
+    候補が複数あるときは、その先で一番早く出る便を選ぶ。"""
+    seq = []   # 行の順に並べた (種類, キー)
+    for r in rows:
+        if r["type"] == "stop":
+            seq += [("t", f"{r['id']}.{k}") for k in r["times"]]
+        else:
+            seq.append(("l", r["id"]))
+    tkeys = [k for typ, k in seq if typ == "t"]
+
+    def lastpos(t):
+        return max((i for i, (typ, k) in enumerate(seq) if typ == "t" and t["times"].get(k)), default=-1)
+
+    for t in trips:
+        p = lastpos(t)
+        if p < 0 or seq[p][1] == tkeys[-1]:
+            continue
+        # 最後に書いてある地点へ同じ便で着いているか（前の地点の発・区間・その地点の時刻が同じ）
+        upto = [x for x in seq[:p + 1]]
+        tail = upto[-3:] if len(upto) >= 3 else upto
+        def same_vehicle(o):
+            for typ, k in tail:
+                a = t["times"].get(k) if typ == "t" else (t["legs"].get(k) or {}).get("label")
+                b = o["times"].get(k) if typ == "t" else (o["legs"].get(k) or {}).get("label")
+                if a != b:
+                    return False
+            return True
+        cands = [o for o in trips if o is not t and lastpos(o) > p and same_vehicle(o)]
+        nxt = next((k for typ, k in seq[p + 1:] if typ == "t"), None)
+        cands = [o for o in cands if o["times"].get(nxt)]
+        if not cands:
+            continue
+        src = min(cands, key=lambda o: _min(o["times"][nxt]))
+        for typ, k in seq[p + 1:]:
+            if typ == "t":
+                t["times"][k] = src["times"].get(k)
+            else:
+                t["legs"][k] = src["legs"].get(k)
 
 
 def _min(s):
@@ -281,6 +324,12 @@ def load_all() -> dict:
         path = DATA_DIR / file
         if not path.exists():
             raise TimetableError(f"timetables.csv {li}行目: {file} が見つかりません")
+        if sheet == "区間ごと":   # 区間ごとの時刻表から乗り継ぎを自動で組み立てる
+            from segment_loader import load_segments
+            if dname in directions:
+                raise TimetableError(f"timetables.csv {li}行目: 「区間ごと」の方向は1行にしてください")
+            directions[dname] = load_segments(path, colors, dname)
+            continue
         if path.suffix.lower() in (".xlsx", ".xlsm") and not sheet:
             raise TimetableError(f"timetables.csv {li}行目: Excelファイルにはシート名が必要です")
         tt = load_timetable(path, colors, sheet)
@@ -296,6 +345,9 @@ def load_all() -> dict:
         raise TimetableError("timetables.csv に時刻表が登録されていません")
     warnings = []
     for d in directions.values():
+        if "stations" in d:
+            _compute_joins(d["rows"], d["trips"])
+            continue
         d["trips"] = _merge_trips(d["rows"], d["trips"])
         _compute_joins(d["rows"], d["trips"])
         warnings += _check_order(d)
