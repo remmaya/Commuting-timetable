@@ -175,7 +175,38 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
                 if not best["新線"] or arr < best["新線"]["arr"]:
                     views["新線"].append(make(b, t, "新線", via=v))
 
+    # 列車基準のスジ（調布駅・笹塚をタップしたとき用）：バスに関係なく、調布を出る列車を全部並べる
+    def make_train(t, st, via=None):
+        short = TYPE_SHORT.get(t["type"], t["type"][:1])
+        trip = {"times": {"s4.dep": _fm(t["dep"])},
+                "legs": {"l5": {"label": short, "color": colors.get(short, gray)}},
+                "marks": {"s6.arr": "京" if st == "京王" else "新"},
+                "src": f"{fn} 京王 {_fm(t['dep'])}", "train": True}
+        if via:
+            vs = TYPE_SHORT.get(via["type"], via["type"][:1]) if via["type"] else None
+            trip["times"].update({"sz.arr": _fm(t["sz"]), "sz.dep": _fm(via["dep"]), "s6.arr": _fm(via["arr"])})
+            trip["legs"]["lz"] = {"label": vs, "color": colors.get(vs, gray)} if vs else None
+        else:
+            trip["times"]["s6.arr"] = _fm(t["arr"])
+        return trip
+
+    tviews = {"": [], "京王": [], "新線": []}
+    for t in trains:
+        tviews[""].append(make_train(t, t["st"]))
+        tviews[t["st"]].append(make_train(t, t["st"]))
+        if sz_trains and t["sz"] is not None:   # 特急 → 笹塚で新線に乗り換え
+            v = min((x for x in sz_trains if x["dep"] >= t["sz"] + sz_transfer), key=key, default=None)
+            if v:
+                tviews["新線"].append(make_train(t, "新線", via=v))
+
     from timetable_loader import _compute_joins
+    tout = {}
+    for k, ts in tviews.items():
+        ts.sort(key=lambda t: (_min(t["times"]["s4.dep"]), _min(t["times"]["s6.arr"])))
+        r = rows_sz if (k == "新線" and sz_trains) else rows
+        _compute_joins(r, ts)
+        tout[k] = {"rows": r, "trips": ts}
+
     out = {}
     for k, ts in views.items():
         ts.sort(key=lambda t: (_min(t["times"]["s0.dep"]), _min(t["times"]["s6.arr"])))
@@ -187,6 +218,6 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
         for i, t in enumerate(ts):
             t["no"] = i + 1
         out[k] = {"rows": r, "trips": ts}
-    return {"name": name, "rows": rows, "trips": out[""]["trips"], "views": out, "goals": [],
+    return {"name": name, "rows": rows, "trips": out[""]["trips"], "views": out, "trainViews": tout, "goals": [],
             "busStops": [w for w in walk if any(b["stop"] == w for b in buses)],   # 設定シートの順
             "stations": [{"key": "", "name": "どちらでも"}] + [{"key": k, "name": v} for k, v in STATIONS.items()]}
