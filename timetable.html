@@ -142,6 +142,9 @@
   .mcell .band { position: absolute; top: 5px; bottom: 5px; left: 8px; right: 2px; background: var(--join);
     border-radius: 9px 0 0 9px; clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%); }
   .mcell.c .band { background: var(--join-center); }
+  /* 分岐区間（復路）：時刻は帯の左端（本線のスジ）に。画面からはみ出すときは画面の左端 */
+  .mcell.al { justify-content: flex-start; }
+  .mcell.al .t { right: auto; left: 0; padding-right: 0; }
   .mcell .t { position: sticky; right: 0; flex: 0 0 var(--colw); width: var(--colw); height: 100%;
     display: flex; align-items: center; justify-content: center; gap: 4px; padding-right: 6px; }
 
@@ -429,7 +432,7 @@ function build() {
       const pos = `grid-row:${l.gridRow};grid-column:${i + 2}/span ${j - i + 1}`;
       const data = `data-key="${l.key}" data-from="${i}" data-to="${j}"`;
       h.push(j > i
-        ? `<div class="mcell ${l.cls}" ${data} style="${pos}"><div class="band"></div><div class="t">${inner}</div></div>`
+        ? `<div class="mcell ${l.cls}${anchorLeft() ? " al" : ""}" ${data} style="${pos}"><div class="band"></div><div class="t">${inner}</div></div>`
         : `<div class="cell ${l.cls}${empty ? " empty" : ""}" ${data} style="${pos}">${inner}</div>`);
       i = j + 1;
     }
@@ -450,6 +453,10 @@ function legHtml(trip, l) {
   const nextKey = `${l.next.id}.${l.next.times[0]}`;
   return trip.times[nextKey] ? "↓" : `<span style="opacity:.4">—</span>`;
 }
+
+// 往路は左のスジが右へ合流していく（時刻は右端）。復路は1本のバスから右へ分かれていく（時刻は左端）
+function anchorLeft() { return !!dir.views; }
+function anchorOf(run) { return anchorLeft() ? run.from : run.to; }
 
 function runOf(key, i) {
   return (runsByKey[key] || []).find((r) => r.from <= i && i <= r.to) || { from: i, to: i };
@@ -490,7 +497,7 @@ function placeSelPill() {
   const pill = $("selPill");
   const l = lines.find((x) => x.key === selKey);
   // 中央のスジの時刻が中央に表示されているときだけ強調（合流区間で時刻が右側にあるときは出さない）
-  if (!l || centerIdx < 0 || runOf(selKey, centerIdx).to !== centerIdx || !trips[centerIdx].times[selKey]) {
+  if (!l || centerIdx < 0 || anchorOf(runOf(selKey, centerIdx)) !== centerIdx || !trips[centerIdx].times[selKey]) {
     pill.style.display = "none"; return;
   }
   pill.style.display = "";
@@ -533,7 +540,7 @@ function selectStop(row, smooth) {
   // 合流区間の中なら、まとまりの最後のスジ（時刻が表示される列）を中央にする
   if (idx >= 0) {
     const run = runOf(key, idx);
-    idx = run.to;
+    idx = anchorOf(run);   // 時刻が表示される列
     // 同じ便のまとまりの中に「優先」のスジ（復路の笹塚乗換＝先着）があれば、それを中央に
     for (let k = run.from; k <= run.to; k++) if (trips[k].prefer) { idx = k; break; }
   }
