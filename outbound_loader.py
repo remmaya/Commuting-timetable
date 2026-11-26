@@ -9,8 +9,8 @@ Excel のシート構成（outbound_timetable.xlsx）。いずれも1行目は�
   バス          系統・調布発
 
 組み立て方
-  JR 1本ごとに、学校に一番早く着く行き方を探す。同じ時刻に着く行き方が複数あれば両方出す
-  （同じバスに乗れる京王が3本以上なら、一番早い列車と一番遅い列車）。
+  JR 1本ごとに、学校に一番早く着く行き方を探す。同じバスに乗れる京王が複数あれば早い方
+  （遅い方はあとのJRのスジとして隣に出る）。降りるバス停が違う行き方が同着なら両方出す。
   あとから出る列車に抜かれる列車は候補にしない。ただし新宿で最初に来る列車がそれで、
   乗ると学校に遅れて着くなら ⚠ 付きで出す（うっかり乗ってしまう失敗を見えるようにするため）。
 """
@@ -161,14 +161,12 @@ def load_outbound(path: Path, colors: dict[str, str], name: str) -> dict:
         if opts:
             best = min(b["school"] for k, b in opts)
             chosen = [(k, b) for k, b in opts if b["school"] == best]
-            # 同じバスに乗れる京王が3本以上あるときは、両端（早めに出て調布で余裕／新宿での待ちが一番短い）だけ
+            # 同じバスに乗れる京王が複数あるときは、早い方（調布で余裕を持てる方）だけ。
+            # 遅い方の列車は、あとのJRのスジに乗る列車として隣に出てくる
             by_bus = {}
             for k, b in chosen:
                 by_bus.setdefault(id(b), []).append((k, b))
-            chosen = []
-            for group in by_bus.values():
-                group.sort(key=lambda kb: kb[0]["dep"])
-                chosen += [group[0]] + ([group[-1]] if len(group) > 1 else [])
+            chosen = [min(group, key=lambda kb: kb[0]["dep"]) for group in by_bus.values()]
         else:   # 学校まで行けるバスがない時間帯は、一番早く着く列車まで
             k = min(ok, key=lambda k: k["arr"])
             chosen = [(k, None)]
