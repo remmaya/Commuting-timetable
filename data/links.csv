@@ -1,4 +1,9 @@
 ﻿乗るバス停,系統（空欄＝全系統）,接近情報のURL
-調布駅,,
-調布中学校,,
-大沢四丁目,,
+調布駅,K,https://transfer.navitime.biz/bus-navi/pc/location/BusOperationResult?courseId=0000456300
+調布駅,O,https://odakyu.bus-navigation.jp/wgsys/wgs/bus.htm?tabName=signpoleTab&selectedLandmarkCatCd=&from=%E8%AA%BF%E5%B8%83%E9%A7%85%E5%8C%97%E5%8F%A3&fromType=1&to=&toType=&locale=ja&fromlat=&fromlng=&tolat=&tolng=&sortBy=0&routeLayoutCd=&fromSignpoleKey=37206&bsid=2&mapFlag=true&existYn=N&routeKey=&nextDiagramFlag=&diaRevisedDate=#
+調布駅,M,https://odakyu.bus-navigation.jp/wgsys/wgs/bus.htm?tabName=signpoleTab&selectedLandmarkCatCd=&from=%E8%AA%BF%E5%B8%83%E9%A7%85%E5%8C%97%E5%8F%A3&fromType=1&to=&toType=&locale=ja&fromlat=&fromlng=&tolat=&tolng=&sortBy=0&routeLayoutCd=&fromSignpoleKey=37206&bsid=2&mapFlag=true&existYn=N&routeKey=&nextDiagramFlag=&diaRevisedDate=#
+調布駅,H,https://odakyu.bus-navigation.jp/wgsys/wgs/bus.htm?tabName=signpoleTab&selectedLandmarkCatCd=&from=%E8%AA%BF%E5%B8%83%E9%A7%85%E5%8C%97%E5%8F%A3&fromType=1&to=&toType=&locale=ja&fromlat=&fromlng=&tolat=&tolng=&sortBy=0&routeLayoutCd=&fromSignpoleKey=37206&bsid=2&mapFlag=true&existYn=N&routeKey=&nextDiagramFlag=&diaRevisedDate=#
+調布中学校,K,https://transfer.navitime.biz/bus-navi/pc/location/BusOperationResult?courseId=0000456300
+調布中学校,O,https://odakyu.bus-navigation.jp/wgsys/wgs/bus.htm?tabName=searchTab&selectedLandmarkCatCd=&from=%E8%AA%BF%E5%B8%83%E4%B8%AD%E5%AD%A6%E6%A0%A1&fromType=1&to=%E8%AA%BF%E5%B8%83%E9%A7%85%E5%8C%97%E5%8F%A3&toType=1&locale=ja&fromlat=&fromlng=&tolat=&tolng=&sortBy=0&routeLayoutCd=&fromSignpoleKey=&bsid=1&mapFlag=false&existYn=N&routeKey=&nextDiagramFlag=&diaRevisedDate=#
+大沢四丁目,H,https://odakyu.bus-navigation.jp/wgsys/wgs/bus.htm?tabName=searchTab&selectedLandmarkCatCd=&from=%E5%A4%A7%E6%B2%A2%E5%9B%9B%E4%B8%81%E7%9B%AE&fromType=1&to=%E8%AA%BF%E5%B8%83%E9%A7%85%E5%8C%97%E5%8F%A3&toType=1&locale=ja&fromlat=&fromlng=&tolat=&tolng=&sortBy=0&routeLayoutCd=&fromSignpoleKey=&bsid=1&mapFlag=false&existYn=N&routeKey=&nextDiagramFlag=&diaRevisedDate=
+大沢四丁目,M,https://odakyu.bus-navigation.jp/wgsys/wgs/bus.htm?tabName=searchTab&selectedLandmarkCatCd=&from=%E5%A4%A7%E6%B2%A2%E5%9B%9B%E4%B8%81%E7%9B%AE&fromType=1&to=%E8%AA%BF%E5%B8%83%E9%A7%85%E5%8C%97%E5%8F%A3&toType=1&locale=ja&fromlat=&fromlng=&tolat=&tolng=&sortBy=0&routeLayoutCd=&fromSignpoleKey=&bsid=1&mapFlag=false&existYn=N&routeKey=&nextDiagramFlag=&diaRevisedDate=
