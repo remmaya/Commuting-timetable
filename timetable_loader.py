@@ -353,10 +353,17 @@ def load_all() -> dict:
         if not path.exists():
             raise TimetableError(f"timetables.csv {li}行目: {file} が見つかりません")
         if sheet == "区間ごと":   # 区間ごとの時刻表から乗り継ぎを自動で組み立てる
-            from segment_loader import load_segments
-            if dname in directions:
-                raise TimetableError(f"timetables.csv {li}行目: 「区間ごと」の方向は1行にしてください")
-            directions[dname] = load_segments(path, colors, dname)
+            if dname not in directions:
+                import openpyxl
+                if "JR" in openpyxl.load_workbook(path, read_only=True).sheetnames:
+                    from outbound_loader import load_outbound
+                    directions[dname] = load_outbound(path, colors, dname)
+                else:
+                    from segment_loader import load_segments
+                    directions[dname] = load_segments(path, colors, dname)
+            if goal:   # 同じ方向の2行目以降は目標（締切）を足すだけ
+                directions[dname]["goals"].append(
+                    {"name": goal, "deadline": _norm_time(deadline, f"timetables.csv {li}行目 締切") if deadline else None})
             continue
         if path.suffix.lower() in (".xlsx", ".xlsm") and not sheet:
             raise TimetableError(f"timetables.csv {li}行目: Excelファイルにはシート名が必要です")
@@ -373,7 +380,7 @@ def load_all() -> dict:
         raise TimetableError("timetables.csv に時刻表が登録されていません")
     warnings = []
     for d in directions.values():
-        if "stations" in d:   # 区間ごと：乗り継ぎと合流は segment_loader で計算済み
+        if "stations" in d or d.get("auto"):   # 区間ごと：乗り継ぎと合流は計算済み
             continue
         d["trips"] = _merge_trips(d["rows"], d["trips"])
         _compute_joins(d["rows"], d["trips"])

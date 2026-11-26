@@ -134,6 +134,8 @@
     height: 2px; border-radius: 1px; background: var(--warn); }
   .thru { font-size: 12px; color: var(--muted); font-weight: 500; }
   .plink { text-decoration: none; }
+  .warn { font-size: 14px; color: var(--warn); margin-left: 1px; }
+  .count .sub .wtxt { color: var(--late); font-weight: 700; }
   .pill.link { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px currentColor; }
   .pill.link::after { content: "↗"; font-size: 9px; margin-left: 2px; }
   .mk { font-size: 10px; font-weight: 700; margin-left: 3px; padding: 1px 3px; border-radius: 4px; align-self: center; }
@@ -453,7 +455,8 @@ function legHtml(trip, l) {
   const leg = trip.legs[l.key];
   if (!leg && trip.train && !trip.times[`${l.next.id}.${l.next.times[0]}`]) return "";   // 列車基準のスジは調布より前を空白に
   if (leg) {
-    const pill = `<span class="pill${leg.url ? " link" : ""}" style="background:${leg.color}">${leg.label}</span>`;
+    const pill = `<span class="pill${leg.url ? " link" : ""}" style="background:${leg.color}">${leg.label}</span>` +
+      (leg.warn ? `<span class="warn">⚠</span>` : "");
     // 接近情報ページがあれば、バッジをタップすると別タブ（既定のブラウザ）で開く
     return `<span style="color:${leg.color}">↓</span>` +
       (leg.url ? `<a href="${leg.url}" target="_blank" rel="noopener" class="plink">${pill}</a>` : pill);
@@ -581,6 +584,7 @@ function updateCountdown() {
   if (g?.deadline) sub += `（${g.name} ${g.deadline}まで）`;
   if (st === "deadline") sub += `<span class="chip deadline">間に合う最終</span>`;
   if (st === "late") sub += `<span class="chip late">遅刻</span>`;
+  if (trip.warn) sub = `<span class="wtxt">${trip.warn}</span>`;   // 抜かれる列車：注意を優先して出す
   $("cSub").innerHTML = sub;
 
   if (!v) {
