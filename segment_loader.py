@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from timetable_loader import TimetableError, _col, _min, _norm_time, _read_xlsx
+from timetable_loader import TimetableError, _col, _min, _norm_time, _read_xlsx, find_link, load_links
 
 STOP_SHORT = {"調布中学校": "調中", "大沢四丁目": "大沢"}
 STATIONS = {"京王": "京王新宿", "新線": "新線新宿"}
@@ -36,6 +36,7 @@ def _station(s: str) -> str:
 
 def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
     fn = path.name
+    links = load_links()
     # 設定
     walk, transfer, sz_transfer_cfg = {}, None, None
     for li, r in _sheet(path, "設定"):
@@ -133,7 +134,8 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
             "times": {"s0.dep": _fm(b["dep"] - walk[b["stop"]]), "s2.dep": _fm(b["dep"]),
                       "s4.arr": _fm(b["arr"]), "s4.dep": _fm(t["dep"])},
             "legs": {"l1": {"label": STOP_SHORT.get(b["stop"], b["stop"][:2]), "color": gray},
-                     "l3": {"label": b["route"], "color": colors.get(b["route"], gray)},
+                     "l3": {"label": b["route"], "color": colors.get(b["route"], gray),
+                            "url": find_link(links, b["stop"], b["route"])},
                      "l5": {"label": short, "color": colors.get(short, gray)}},
             "marks": {"s6.arr": "京" if st == "京王" else "新"},
             "src": f"{fn} バス {b['stop']} {_fm(b['dep'])}",

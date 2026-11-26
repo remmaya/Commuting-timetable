@@ -133,6 +133,9 @@
   .is-deadline .t::after, .cell.is-deadline::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 7px;
     height: 2px; border-radius: 1px; background: var(--warn); }
   .thru { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .plink { text-decoration: none; }
+  .pill.link { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px currentColor; }
+  .pill.link::after { content: "↗"; font-size: 9px; margin-left: 2px; }
   .mk { font-size: 10px; font-weight: 700; margin-left: 3px; padding: 1px 3px; border-radius: 4px; align-self: center; }
   .mk-京 { background: #fce8e6; color: #c5221f; }
   .mk-新 { background: #e6f4ea; color: #137333; }
@@ -449,7 +452,12 @@ function build() {
 function legHtml(trip, l) {
   const leg = trip.legs[l.key];
   if (!leg && trip.train && !trip.times[`${l.next.id}.${l.next.times[0]}`]) return "";   // 列車基準のスジは調布より前を空白に
-  if (leg) return `<span style="color:${leg.color}">↓</span><span class="pill" style="background:${leg.color}">${leg.label}</span>`;
+  if (leg) {
+    const pill = `<span class="pill${leg.url ? " link" : ""}" style="background:${leg.color}">${leg.label}</span>`;
+    // 接近情報ページがあれば、バッジをタップすると別タブ（既定のブラウザ）で開く
+    return `<span style="color:${leg.color}">↓</span>` +
+      (leg.url ? `<a href="${leg.url}" target="_blank" rel="noopener" class="plink">${pill}</a>` : pill);
+  }
   const nextKey = `${l.next.id}.${l.next.times[0]}`;
   return trip.times[nextKey] ? "↓" : `<span style="opacity:.4">—</span>`;
 }

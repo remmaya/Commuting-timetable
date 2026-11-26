@@ -32,13 +32,15 @@ st.markdown(
 
 
 @st.cache_data
-def load(mtimes):  # データファイルを書き換えたら（更新日時が変われば）読み直す
+def load(mtimes):  # ファイルを書き換えたら（更新日時が変われば）読み直す
     return load_all()
 
 
 data_dir = Path(__file__).parent / "data"
-mtimes = tuple(sorted((p.name, p.stat().st_mtime) for p in data_dir.iterdir()
-                      if p.suffix.lower() in (".csv", ".xlsx", ".xlsm")))
+app_dir = Path(__file__).parent
+# データだけでなく読み込み処理（*.py）を更新したときも読み直す
+mtimes = tuple(sorted((p.name, p.stat().st_mtime) for p in list(data_dir.iterdir()) + list(app_dir.glob("*.py"))
+                      if p.suffix.lower() in (".csv", ".xlsx", ".xlsm", ".py")))
 try:
     data = load(mtimes)
 except TimetableError as e:

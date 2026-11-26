@@ -118,6 +118,31 @@ def load_colors() -> dict[str, str]:
     return colors
 
 
+def load_links() -> list[tuple[str, str, str]]:
+    """data/links.csv：乗るバス停・系統ごとの接近情報ページ（系統の欄を空にすると、そのバス停の全系統）。"""
+    path = DATA_DIR / "links.csv"
+    out = []
+    if path.exists():
+        for row in _read_csv(path)[1:]:
+            row = row + ["", "", ""]
+            if row[2].startswith("http"):
+                out.append((row[0], row[1], row[2]))
+    return out
+
+
+def find_link(links, stop: str, route: str) -> str | None:
+    for s, r, u in links:
+        if s == stop and r == route:
+            return u
+    for s, r, u in links:
+        if s == stop and not r:
+            return u
+    for s, r, u in links:
+        if not s and r == route:
+            return u
+    return None
+
+
 def load_timetable(path: Path, colors: dict[str, str], sheet: str = "") -> dict:
     if path.suffix.lower() in (".xlsx", ".xlsm"):
         table = _read_xlsx(path, sheet)
@@ -175,13 +200,16 @@ def load_timetable(path: Path, colors: dict[str, str], sheet: str = "") -> dict:
             # 発/着以外の行 = 区間（種別・系統・矢印）
             if not rows:
                 raise TimetableError(f"{path.name} {li}行目: 最初の行は地点（発/着）にしてください")
+            board = rows[-1]["name"] if rows[-1]["type"] == "stop" else ""   # この区間で乗る地点
             leg = {"type": "leg", "id": f"l{len(rows)}"}
             rows.append(leg)
+            links = load_links()
             stop = None
             for j, v in enumerate(cells(row, li)):
                 lab = _norm_label(v)
                 trips[j]["legs"][leg["id"]] = (
-                    {"label": lab, "color": colors.get(lab, DEFAULT_COLOR)} if lab else None)
+                    {"label": lab, "color": colors.get(lab, DEFAULT_COLOR),
+                     "url": find_link(links, board, lab)} if lab else None)
 
     if rows[0]["type"] != "stop" or rows[-1]["type"] != "stop":
         raise TimetableError(f"{path.name}: 最初と最後の行は地点（発/着）にしてください")
