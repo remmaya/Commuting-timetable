@@ -355,7 +355,7 @@ def load_all() -> dict:
         if sheet == "区間ごと":   # 区間ごとの時刻表から乗り継ぎを自動で組み立てる
             if dname not in directions:
                 import openpyxl
-                if "JR" in openpyxl.load_workbook(path, read_only=True).sheetnames:
+                if "系統" in openpyxl.load_workbook(path, read_only=True).sheetnames:   # 往路（系統シートあり）
                     from outbound_loader import load_outbound
                     directions[dname] = load_outbound(path, colors, dname)
                 else:

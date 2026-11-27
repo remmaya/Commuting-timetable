@@ -69,5 +69,9 @@ def table_height(d):
     return h
 
 
-height = 52 + 46 + 80 + max(table_height(d) for d in data["directions"]) + 2 + 50 + 64
+def all_rows(d):  # 復路は表示（新宿の駅）ごとに行が違う（笹塚の行など）
+    return [d["rows"]] + [v["rows"] for v in d.get("views", {}).values()]
+
+
+height = 52 + 46 + 80 + max(table_height({"rows": r}) for d in data["directions"] for r in all_rows(d)) + 2 + 50 + 64
 components.html(html, height=height, scrolling=False)

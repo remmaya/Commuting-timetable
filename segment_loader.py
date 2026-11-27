@@ -47,6 +47,8 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
             v = int(float(val))
         except ValueError:
             raise TimetableError(f"{fn}「設定」{li}行目: 値「{val}」が数字ではありません")
+        if "JR" in item:
+            continue   # 新宿→JR の乗り換えは _extend_jr で読む
         if "笹塚" in item and "乗り換え" in item:
             sz_transfer_cfg = v
         elif "乗り換え" in item:
@@ -230,6 +232,102 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
         for i, t in enumerate(ts):
             t["no"] = i + 1
         out[k] = {"rows": r, "trips": ts}
-    return {"name": name, "rows": rows, "trips": out[""]["trips"], "views": out, "trainViews": tout, "szView": {"trips": sz_view} if sz_view else None, "goals": [],
+    result = {"name": name, "rows": rows, "trips": out[""]["trips"], "views": out, "trainViews": tout, "szView": {"trips": sz_view} if sz_view else None, "goals": [],
             "busStops": [w for w in walk if any(b["stop"] == w for b in buses)],   # 設定シートの順
             "stations": [{"key": "", "name": "どちらでも"}] + [{"key": k, "name": v} for k, v in STATIONS.items()]}
+    _extend_jr(result, path, colors)
+    return result
+
+
+JR_SHORT = {"各停": "各", "普通": "各", "快速": "快", "通快": "通快", "通勤快速": "通快"}
+
+
+def _extend_jr(d: dict, path: Path, colors: dict[str, str]) -> None:
+    """京王新宿から埼京線で赤羽まで延ばす（JR シートがあるときだけ）。
+    京王新宿に着くスジは「一番早く赤羽に着く列車」と「そのあと最初の新宿始発」に分ける（同じ列車なら1本）。
+    新線新宿に着くスジは新宿で終わり。"""
+    import openpyxl
+    if "JR" not in openpyxl.load_workbook(path, read_only=True).sheetnames:
+        return
+    fn = path.name
+    tr = None
+    for li, r in _sheet(path, "設定"):
+        if "JR" in r[0] and len(r) > 1 and r[1].strip():
+            tr = int(float(r[1]))
+    if tr is None:
+        raise TimetableError(f"{fn}「設定」: 新宿の乗り換え（京王新宿→JR）の値がありません")
+    jr = []
+    for li, r in _sheet(path, "JR"):
+        r = r + [""] * 4
+        w = f"{fn}「JR」{li}行目"
+        dep, arr = _norm_time(r[0], w + " A列"), _norm_time(r[3], w + " D列")
+        if dep and arr:
+            jr.append({"dep": _min(dep), "type": r[1].strip(), "start": r[2].strip() == "新宿", "arr": _min(arr)})
+    jr.sort(key=lambda x: x["dep"])
+    gray = "#80868b"
+
+    # 行：新宿駅に「発」を足し、赤羽駅を追加（rows と笹塚つきの rows は新宿駅の行を共有している）
+    shinjuku = d["rows"][-1]
+    shinjuku["times"] = ["arr", "dep"]
+    tail = [{"type": "leg", "id": "lj"}, {"type": "stop", "id": "s9", "name": "赤羽駅", "times": ["arr"]}]
+    seen = set()
+    for v in list(d["views"].values()) + list(d["trainViews"].values()):
+        if id(v["rows"]) not in seen:
+            seen.add(id(v["rows"]))
+            v["rows"].extend(tail)
+
+    def jr_part(j):
+        short = JR_SHORT.get(j["type"], j["type"][:1])
+        times = {"s6.dep": _fm(j["dep"]), "s9.arr": _fm(j["arr"])}
+        leg = {"label": short, "color": colors.get(short, gray)}
+        return times, leg, ({"s6.dep": "始"} if j["start"] else {})
+
+    def expand(trips):
+        out = []
+        for t in trips:
+            if t.get("marks", {}).get("s6.arr") != "京" or not t["times"].get("s6.arr"):
+                out.append(t)
+                continue
+            ok = [j for j in jr if j["dep"] >= _min(t["times"]["s6.arr"]) + tr]
+            if not ok:
+                out.append(t)
+                continue
+            fast = min(ok, key=lambda j: (j["arr"], -j["dep"]))
+            start = next((j for j in ok if j["start"]), None)
+            picks = [fast] + ([start] if start and start is not fast else [])
+            for j in picks:
+                n = {**t, "times": dict(t["times"]), "legs": dict(t["legs"]), "marks": dict(t.get("marks", {})),
+                     "joins": {}}
+                times, leg, marks = jr_part(j)
+                n["times"].update(times)
+                n["legs"]["lj"] = leg
+                n["marks"].update(marks)
+                if j is start and start is not fast:
+                    n["prefer"] = True   # 地点をタップしたら、急いでいなければ乗る新宿始発を中央に
+                out.append(n)
+        out.sort(key=lambda t: (_min(t["times"].get("s0.dep") or t["times"].get("s4.dep") or "0:00"),
+                                _min(t["times"]["s6.arr"]) if t["times"].get("s6.arr") else 9999,
+                                _min(t["times"]["s9.arr"]) if t["times"].get("s9.arr") else 9999))
+        return out
+
+    from timetable_loader import _compute_joins
+    for v in list(d["views"].values()) + list(d["trainViews"].values()):
+        v["trips"] = expand(v["trips"])
+        _compute_joins(v["rows"], v["trips"])
+        for t in v["trips"]:
+            if "bus" in t:
+                for k2 in ("s0.dep", "l1", "s2.dep", "l3", "s4.arr"):
+                    t["joins"][k2] = t["bus"]
+        for i, t in enumerate(v["trips"]):
+            t["no"] = i + 1
+    d["trips"] = d["views"][""]["trips"]
+
+    # 新宿駅をタップしたとき用：新宿を出るJRを全部
+    jv = []
+    for j in jr:
+        times, leg, marks = jr_part(j)
+        jv.append({"times": times, "legs": {"lj": leg}, "marks": marks, "train": True,
+                   "mode": "新宿からのJR", "src": f"{fn} JR"})
+    _compute_joins(d["views"]["京王"]["rows"], jv)
+    d["jrView"] = {"trips": jv}
+

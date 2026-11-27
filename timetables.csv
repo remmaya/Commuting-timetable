@@ -1,0 +1,5 @@
+﻿方向,目標,ファイル,シート,締切（学校着）
+往路,1限,outbound_timetable.xlsx,区間ごと,8:50
+往路,2限,outbound_timetable.xlsx,区間ごと,9:50
+往路,3限,outbound_timetable.xlsx,区間ごと,10:50
+復路,,return_timetable.xlsx,区間ごと,

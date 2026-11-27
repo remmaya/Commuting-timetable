@@ -140,6 +140,7 @@
   .pill.link::after { content: "↗"; font-size: 9px; margin-left: 2px; }
   .mk { font-size: 10px; font-weight: 700; margin-left: 3px; padding: 1px 3px; border-radius: 4px; align-self: center; }
   .mk-京 { background: #fce8e6; color: #c5221f; }
+  .mk-始 { background: #e8f0fe; color: #1967d2; }
   .mk-新 { background: #e6f4ea; color: #137333; }
   .pill { font-size: 11px; font-weight: 700; line-height: 1; padding: 3px 7px; border-radius: 999px; color: #fff; }
 
@@ -279,7 +280,9 @@ function buildStations() {
   $("goals").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     stationKey = b.dataset.k;
     store.set(`st:${dir.name}`, stationKey);
-    if (trainMode === "sz" && stationKey !== "新線") { trainMode = "train"; selStopName = "調布駅"; }   // 笹塚の行がなくなるので調布から
+    if ((trainMode === "sz" && stationKey !== "新線") || (trainMode === "jr" && stationKey === "新線")) {
+      trainMode = "train"; selStopName = "調布駅";   // その表示がない駅に切り替えたら調布から
+    }   // 笹塚の行がなくなるので調布から
     applyTrips();
   }));
   const saved = store.get(`st:${dir.name}`);
@@ -291,6 +294,7 @@ function applyTrips() {
   if (dir.stations) {
     $("goals").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.k === stationKey));
     const v = trainMode === "sz" ? { rows: dir.views["新線"].rows, trips: dir.szView.trips }
+            : trainMode === "jr" ? { rows: dir.views["京王"].rows, trips: dir.jrView.trips }
             : (trainMode ? dir.trainViews : dir.views)[stationKey];
     rows = v.rows;
     // バス停で絞り込む（乗るバス停が選んだものだけ）。列車基準のときはバス停に関係なく全部
@@ -537,7 +541,8 @@ function selectStop(row, smooth) {
   if (dir.trainViews) {   // 復路：調布駅から先なら列車基準、学校・バス停ならバス基準
     // 笹塚（新線新宿のとき）は笹塚から出る列車を全部
     const wantTrain = ["s0", "s2"].includes(row.id) ? false
-                    : (row.id === "sz" && dir.szView && stationKey === "新線") ? "sz" : "train";
+                    : (row.id === "sz" && dir.szView && stationKey === "新線") ? "sz"
+                    : (["s6", "s9"].includes(row.id) && dir.jrView && stationKey !== "新線") ? "jr" : "train";
     if (wantTrain !== trainMode) {
       trainMode = wantTrain;
       selStopName = row.name;
@@ -597,6 +602,7 @@ function updateCountdown() {
   const modeLabel = trip.mode || (trainMode === "train" ? "調布からの列車" : "");
   let sub = `No.${centerIdx + 1}${modeLabel ? `（${modeLabel}）` : ""}`;
   if (arr) sub += ` ・ ${last.name} ${arr}着`;
+  else if (dir.views && trip.times["s6.arr"]) sub += ` ・ 新宿駅 ${trip.times["s6.arr"]}着`;
   if (g?.deadline) sub += `（${g.name} ${g.deadline}まで）`;
   if (st === "deadline") sub += `<span class="chip deadline">間に合う最終</span>`;
   if (st === "late") sub += `<span class="chip late">遅刻</span>`;
