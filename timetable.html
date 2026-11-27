@@ -459,6 +459,18 @@ function build() {
   centerIdx = -1;
 }
 
+// Androidでは、インストールしたアプリ（独立ウィンドウ）から開くと上に重なる簡易ブラウザになるので、
+// intentリンクにしてChromeアプリ本体で開く。Chromeがなければ普通に開く（browser_fallback_url）。
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+function extLink(url) {
+  if (!IS_ANDROID) return url;
+  const m = url.match(/^(https?):\/\/(.*)$/);
+  if (!m) return url;
+  const [rest, hash] = m[2].split("#");
+  return `intent://${rest}#Intent;scheme=${m[1]};package=com.android.chrome;` +
+         `S.browser_fallback_url=${encodeURIComponent(url)};end`;
+}
+
 function legHtml(trip, l) {
   const leg = trip.legs[l.key];
   if (!leg && trip.train && !trip.times[`${l.next.id}.${l.next.times[0]}`]) return "";   // 列車基準のスジは調布より前を空白に
@@ -467,7 +479,7 @@ function legHtml(trip, l) {
       (leg.warn ? `<span class="warn">⚠</span>` : "");
     // 接近情報ページがあれば、バッジをタップすると別タブ（既定のブラウザ）で開く
     return `<span style="color:${leg.color}">↓</span>` +
-      (leg.url ? `<a href="${leg.url}" target="_blank" rel="noopener" class="plink">${pill}</a>` : pill);
+      (leg.url ? `<a href="${extLink(leg.url)}" target="_blank" rel="noopener" class="plink">${pill}</a>` : pill);
   }
   const nextKey = `${l.next.id}.${l.next.times[0]}`;
   return trip.times[nextKey] ? "↓" : `<span style="opacity:.4">—</span>`;
