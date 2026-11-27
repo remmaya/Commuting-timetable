@@ -133,10 +133,10 @@
   .is-deadline .t::after, .cell.is-deadline::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 7px;
     height: 2px; border-radius: 1px; background: var(--warn); }
   .thru { font-size: 12px; color: var(--muted); font-weight: 500; }
-  .plink { text-decoration: none; }
+  .plink { text-decoration: none; outline: none; -webkit-tap-highlight-color: transparent; }
   .warn { font-size: 14px; color: var(--warn); margin-left: 1px; }
   .count .sub .wtxt { color: var(--late); font-weight: 700; }
-  .pill.link { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px currentColor; }
+  .pill.link { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--line-strong); }
   .pill.link::after { content: "↗"; font-size: 9px; margin-left: 2px; }
   .mk { font-size: 10px; font-weight: 700; margin-left: 3px; padding: 1px 3px; border-radius: 4px; align-self: center; }
   .mk-京 { background: #fce8e6; color: #c5221f; }
@@ -255,6 +255,7 @@ function buildBar() {
 }
 
 let stationKey = "", stopKey = "";
+let altKey = null;        // 往路で新宿駅・調布駅から先をタップしたときの表示（keio / bus）
 let trainMode = false;   // 復路で調布駅・笹塚をタップしたら、バスに関係なく列車を基準にしたスジを出す
 function buildStops() {
   const has = !!dir.busStops;
@@ -278,6 +279,7 @@ function buildStations() {
   $("goals").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     stationKey = b.dataset.k;
     store.set(`st:${dir.name}`, stationKey);
+    if (trainMode === "sz" && stationKey !== "新線") { trainMode = "train"; selStopName = "調布駅"; }   // 笹塚の行がなくなるので調布から
     applyTrips();
   }));
   const saved = store.get(`st:${dir.name}`);
@@ -288,7 +290,8 @@ function buildStations() {
 function applyTrips() {
   if (dir.stations) {
     $("goals").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.k === stationKey));
-    const v = (trainMode ? dir.trainViews : dir.views)[stationKey];
+    const v = trainMode === "sz" ? { rows: dir.views["新線"].rows, trips: dir.szView.trips }
+            : (trainMode ? dir.trainViews : dir.views)[stationKey];
     rows = v.rows;
     // バス停で絞り込む（乗るバス停が選んだものだけ）。列車基準のときはバス停に関係なく全部
     $("stops").querySelectorAll("button").forEach((b) => b.classList.toggle("active", b.dataset.k === (trainMode ? "" : stopKey)));
@@ -296,7 +299,7 @@ function applyTrips() {
     trips = trainMode ? v.trips : v.trips.filter((t) => !stopKey || t.bus.startsWith(stopKey + "|"));
   } else {
     rows = dir.rows;
-    trips = dir.trips;
+    trips = altKey ? dir.altViews[altKey].trips : dir.trips;
   }
   N = trips.length;
   computeGoalLast();
@@ -331,6 +334,7 @@ function switchDirection(i) {
   if (dir.stations) buildStations(); else buildGoals();
   buildStops();
   trainMode = false;
+  altKey = null;
   selStopName = null;   // 方向を切り替えたら最初の地点（自宅／学校）から
   applyTrips();
 }
@@ -429,7 +433,7 @@ function build() {
       let j = i;
       while (sig && j + 1 < N && trips[j + 1].joins?.[l.key] === sig) j++;
       runs.push({ from: i, to: j });
-      const thru = l.kind !== "leg" && !trips[j].times[l.key] && l.row.id === "sz" && trips[j].times["s6.arr"];
+      const thru = l.kind !== "leg" && !trips[j].times[l.key] && l.row.id === "sz" && trips[j].times["s6.arr"] && trips[j].times["s4.dep"];   // 調布から乗ってきたスジだけ
       const mk = trips[j].marks?.[l.key];
       const inner = l.kind === "leg" ? legHtml(trips[j], l)
         : (thru ? `<span class="thru">${l.kind === "arr" ? "直通" : "↓"}</span>` : (trips[j].times[l.key] ?? (trips[j].train ? "" : "—"))) + (mk ? `<span class="mk mk-${mk}">${mk}</span>` : "");
@@ -531,11 +535,22 @@ $("testTime").addEventListener("change", updateCountdown);
 // ---------- 地点タップ ----------
 function selectStop(row, smooth) {
   if (dir.trainViews) {   // 復路：調布駅から先なら列車基準、学校・バス停ならバス基準
-    const wantTrain = !["s0", "s2"].includes(row.id);
+    // 笹塚（新線新宿のとき）は笹塚から出る列車を全部
+    const wantTrain = ["s0", "s2"].includes(row.id) ? false
+                    : (row.id === "sz" && dir.szView && stationKey === "新線") ? "sz" : "train";
     if (wantTrain !== trainMode) {
       trainMode = wantTrain;
       selStopName = row.name;
       applyTrips();   // 表を作り直して、この地点で選び直す
+      return;
+    }
+  }
+  if (dir.altFor) {   // 往路：新宿駅なら京王の列車ごと、調布駅から先ならバスごと、自宅・赤羽なら通常
+    const want = dir.altFor[row.id] || null;
+    if (want !== altKey) {
+      altKey = want;
+      selStopName = row.name;
+      applyTrips();
       return;
     }
   }
@@ -579,7 +594,8 @@ function updateCountdown() {
   const st = status[centerIdx];
   const arr = schoolKey ? trip.times[schoolKey] : null;
   const last = rows[rows.length - 1];
-  let sub = `No.${centerIdx + 1}${trainMode ? "（調布からの列車）" : ""}`;
+  const modeLabel = trip.mode || (trainMode === "train" ? "調布からの列車" : "");
+  let sub = `No.${centerIdx + 1}${modeLabel ? `（${modeLabel}）` : ""}`;
   if (arr) sub += ` ・ ${last.name} ${arr}着`;
   if (g?.deadline) sub += `（${g.name} ${g.deadline}まで）`;
   if (st === "deadline") sub += `<span class="chip deadline">間に合う最終</span>`;

@@ -209,6 +209,16 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
         _compute_joins(r, ts)
         tout[k] = {"rows": r, "trips": ts}
 
+    # 笹塚をタップしたとき用：笹塚から新線新宿へ向かう列車を全部
+    sz_view = None
+    if sz_trains:
+        sz_view = [{"times": {"sz.dep": _fm(x["dep"]), "s6.arr": _fm(x["arr"])},
+                    "legs": {"lz": {"label": TYPE_SHORT.get(x["type"], x["type"][:1]),
+                                    "color": colors.get(TYPE_SHORT.get(x["type"], x["type"][:1]), gray)} if x["type"] else None},
+                    "marks": {"s6.arr": "新"}, "train": True, "mode": "笹塚からの列車", "src": f"{fn} 笹塚"}
+                   for x in sorted(sz_trains, key=lambda x: x["dep"])]
+        _compute_joins(rows_sz, sz_view)
+
     out = {}
     for k, ts in views.items():
         ts.sort(key=lambda t: (_min(t["times"]["s0.dep"]), _min(t["times"]["s6.arr"])))
@@ -220,6 +230,6 @@ def load_segments(path: Path, colors: dict[str, str], name: str) -> dict:
         for i, t in enumerate(ts):
             t["no"] = i + 1
         out[k] = {"rows": r, "trips": ts}
-    return {"name": name, "rows": rows, "trips": out[""]["trips"], "views": out, "trainViews": tout, "goals": [],
+    return {"name": name, "rows": rows, "trips": out[""]["trips"], "views": out, "trainViews": tout, "szView": {"trips": sz_view} if sz_view else None, "goals": [],
             "busStops": [w for w in walk if any(b["stop"] == w for b in buses)],   # 設定シートの順
             "stations": [{"key": "", "name": "どちらでも"}] + [{"key": k, "name": v} for k, v in STATIONS.items()]}
